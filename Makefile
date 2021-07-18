@@ -1,10 +1,11 @@
-# Builds a cache of binaries which can just be copied for CI
 OS := $(shell uname)
 ifeq ($(OS), Darwin)
 SEDI=sed -i '.bak'
+export LIBRARY_PATH=/usr/local/Cellar/openssl@1.1/1.1.1j/lib
 else
 SEDI=sed -i
 endif
+
 
 libhts.a:
 	@echo Compiling $(@F)
@@ -22,12 +23,11 @@ pileup: libhts.a src/medaka_common.c src/medaka_counts.c src/medaka_bamiter.c
 		-Isrc -Ihtslib \
 		src/medaka_common.c src/medaka_counts.c src/medaka_bamiter.c libhts.a \
 		-lm -lz -llzma -lbz2 -lpthread -lcurl -lcrypto \
-		-o $(@) -std=c99 -msse3 -O3
+		-o $(@)
 
 
-modpileup: libhts.a pileup_mod.c
-	gcc -pthread  -g -Wall -fstack-protector-strong -D_FORTIFY_SOURCE=2 -fPIC -std=c99 -msse3 -O3 \
-		-Isrc -Ihtslib \
-		pileup_mod.c libhts.a \
-		-lm -lz -llzma -lbz2 -lpthread -lcurl -lcrypto \
-		-o $(@) -std=c99 -msse3 -O3
+.PHONY: clean
+clean: clean_htslib
+	rm pileup
+
+
