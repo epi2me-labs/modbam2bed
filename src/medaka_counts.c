@@ -92,9 +92,9 @@ void print_bedmethyl(plp_data pileup, char *ref, int rstart){
     
     // this is a bit naff, we should introspect these indices, or have them
     // as data in the header.
-    const size_t numbases = 5;
-    size_t fwdbases[] = {4,5,6,7,11};  // ignore dels
-    size_t revbases[] = {0,1,2,3,10};
+    const size_t numbases = 6;
+    size_t fwdbases[] = {4,5,6,7,9,11};
+    size_t revbases[] = {0,1,2,3,8,10};
     size_t ci, mi;
     size_t *bases;
     bool isrev;
@@ -120,20 +120,22 @@ void print_bedmethyl(plp_data pileup, char *ref, int rstart){
         }
 
         // calculate depth on strand
+        // TODO: should do this with and without dels
         size_t depth = 0;
         for (size_t j = 0; j < numbases; ++j) {
             depth += pileup->matrix[i * featlen + bases[j]];
         }
-        // modified proportion - "Percentage of reads that show methylation at this position in the genome"
-        //  - Seems to disregard posibility of non-C canonical calls
         // https://www.encodeproject.org/data-standards/wgbs/
-        float meth = depth == 0 ? 0 : 100 * ((float) pileup->matrix[i * featlen + mi]) / depth;
-        
-        // because of the above, lets calculate score as proportion of meth:non-meth C
+        // column 11: "Percentage of reads that show methylation at this position in the genome"
+        //  - Seems to disregard posibility of non-C canonical calls
+        // lets calculate this as proportion of meth:non-meth C
         size_t cd = pileup->matrix[i * featlen + ci];
         size_t md = pileup->matrix[i * featlen + mi];
         size_t tot = cd + md;
-        size_t score = tot == 0 ? 0 : (1000 * md) / (cd + md);
+        float meth = tot == 0 ? 0 : (100.0f * md) / (cd + md);
+        // column 5: "Score from 0-1000. Capped number of reads"
+        // lets go with proportion of mod:depth.
+        size_t score = depth == 0 ? 0 : 1000 * ((float) md) / depth;
 
         fprintf(stdout,
             "%s\t%zu\t%zu\t"
@@ -167,13 +169,15 @@ int pileup_cd_destroy(void *data, const bam1_t *b, bam_pileup_cd *cd) {
  *  @param bam_file input aligment file.
  *  @param ref reference sequence corresponding to region.
  *  @param rstart the 0-based start of the reference.
+ *  @param threshold decision boundary for mod. base calling.
  *  @returns a pileup data pointer.
  *
  *  The return value can be freed with destroy_plp_data.
  *
  */
 plp_data calculate_pileup(
-        const char *region, const char *bam_file, const char *read_group, char *ref, int rstart) {
+        const char *region, const char *bam_file, const char *read_group,
+        char *ref, int rstart, float threshold) {
 
     // extract `chr`:`start`-`end` from `region`
     //   (start is one-based and end-inclusive),
@@ -246,10 +250,9 @@ plp_data calculate_pileup(
 
             int base_i;
             if (p->is_del) {
-                // deletions are kept in the first layer of qscore stratification, if any
+                // deletions are interesting for counting depth
                 base_i = bam_is_rev(p->b) ? rev_del : fwd_del;
             } else { // handle pos and any following ins
-                //int max_j = p->indel > 0 ? p->indel : 0;
                 int base_j = bam1_seqi(bam1_seq(p->b), p->qpos);
 
                 // Simple mod detection
@@ -264,11 +267,12 @@ plp_data calculate_pileup(
                     //    mod[0].canonical_base, mod[0].modified_base, pos);
                     // make decision between mod and unmod.
                     //float q = -10 * log10(1 - ((mod[0].qual + 0.5) / 256)) + 0.5;
-                    const int lowbound = (int)(fmin(255.0, 0.33 * 256));
-                    const int highbound = (int)(fmin(255.0, 0.66 * 256));
+                    const int lowbound = (int)(threshold * 255);
+                    const int highbound = (int)(threshold * 255);
                     if (mod[0].qual > highbound) {
                         base_i = bam_is_rev(p->b) ? rev_mod : fwd_mod;
                     } else if (mod[0].qual <  lowbound) {
+                        // canonical
                         if bam_is_rev(p->b) base_j += 16;
                         base_i = num2countbase[base_j];
                     } else {
@@ -307,13 +311,21 @@ plp_data calculate_pileup(
 // Demonstrates usage
 int main(int argc, char *argv[]) {
     if(argc < 4) {
-        fprintf(stderr, "Usage %s <bam> <region> <ref. fasta>.\n", argv[0]);
+        fprintf(stderr, "Usage %s <bam> <region> <ref. fasta> <threshold>\n", argv[0]);
         exit(1);
     }
     const char *bam_file = argv[1];
     const char *reg = argv[2];
     const char *fasta = argv[3];
+    const float threshold = atof(argv[4]);
     const char* read_group = NULL;
+
+    if (threshold < 0 || threshold > 1.0) {
+        fprintf(stderr, "ERROR: threshold paramer must be in (0,1)\n");
+        exit(1);
+    } else {
+        fprintf(stderr, "Using threshold %.3f\n", threshold);
+    }
 
     // load ref sequence
     faidx_t *fai = fai_load(fasta);
@@ -333,16 +345,15 @@ int main(int argc, char *argv[]) {
     } else {
         fprintf(stderr, "Failed to parse region: '%s'.\n", reg);
     }
+    fprintf(stderr, "Reference: %s:%d-%d\n", chr, start, end);
 
-    plp_data pileup = calculate_pileup(reg, bam_file, read_group, ref, start);
+    plp_data pileup = calculate_pileup(reg, bam_file, read_group, ref, start, threshold);
     if (pileup == NULL) {
         free(chr); free(ref); exit(1);
     }
-    size_t pstart = pileup->major[0]; size_t pend = pileup->major[pileup->n_cols - 1];
-    fprintf(stderr, "Pileup is length %zu, with buffer of %zu columns\n", pileup->n_cols, pileup->buffer_cols);
-    fprintf(stderr, "Pileup: %s:%zu-%zu\n", pileup->rname, pstart, pend);
-    fprintf(stderr, "Reference: %s:%d-%d\n", chr, start, end);
-
+    //size_t pstart = pileup->major[0]; size_t pend = 1 + pileup->major[pileup->n_cols - 1];
+    //fprintf(stderr, "Pileup is length %zu, with buffer of %zu columns\n", pileup->n_cols, pileup->buffer_cols);
+    //fprintf(stderr, "Pileup: %s:%zu-%zu\n", pileup->rname, pstart, pend);
     print_bedmethyl(pileup, ref, start);
     destroy_plp_data(pileup);
     free(chr);

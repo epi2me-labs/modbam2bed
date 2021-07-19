@@ -19,8 +19,8 @@ static const size_t fwd_del = 9;  // position of D
 static const size_t rev_del = 8;  // position of d
 
 
-static const size_t fwd_mod = 10; // position of M
-static const size_t rev_mod = 11; // position of m
+static const size_t fwd_mod = 11; // position of M
+static const size_t rev_mod = 10; // position of m
 
 // bam tag used for datatypes
 static const char datatype_tag[] = "DT";
@@ -83,13 +83,15 @@ void print_bedmethyl(plp_data pileup, char *ref, int rstart);
  *  @param bam_file input aligment file.
  *  @param ref reference sequence corresponding to region.
  *  @param rstart the 0-based start of the reference.
+ *  @param threshold decision boundary for mod. base calling.
  *  @returns a pileup data pointer.
  *
  *  The return value can be freed with destroy_plp_data.
  *
  */
 plp_data calculate_pileup(
-        const char *region, const char *bam_file, const char *read_group, char *ref, int rstart);
+        const char *region, const char *bam_file, const char *read_group,
+        char *ref, int rstart, float threshold);
 
 
 #endif
