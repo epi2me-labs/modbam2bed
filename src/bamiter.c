@@ -1,7 +1,7 @@
 #include <errno.h>
 #include <string.h>
 
-#include "medaka_bamiter.h"
+#include "bamiter.h"
 
 // iterator for reading bam
 int read_bam(void *data, bam1_t *b) {

@@ -1,5 +1,5 @@
-#ifndef _MEDAKA_COUNTS_H
-#define _MEDAKA_COUNTS_H
+#ifndef _MODBAMBED_COUNTS_H
+#define _MODBAMBED_COUNTS_H
 
 // medaka-style feature data
 typedef struct _plp_data {
@@ -12,18 +12,13 @@ typedef struct _plp_data {
 typedef _plp_data *plp_data;
 
 
-// medaka-style base encoding
+// medaka-style base encoding - augmented with (a) modified base counts
 static const char plp_bases[] = "acgtACGTdDmM";
 static const size_t featlen = 12; // len of the above
 static const size_t fwd_del = 9;  // position of D
 static const size_t rev_del = 8;  // position of d
-
-
 static const size_t fwd_mod = 11; // position of M
 static const size_t rev_mod = 10; // position of m
-
-// bam tag used for datatypes
-static const char datatype_tag[] = "DT";
 
 // convert 16bit IUPAC (+16 for strand) to plp_bases index
 static const int num2countbase[32] = {
@@ -44,8 +39,7 @@ static const int num2countbase[32] = {
  *  The return value can be freed with destroy_plp_data.
  *
  */
-plp_data create_plp_data(size_t buffer_cols, char* rname);
-
+plp_data create_plp_data(size_t buffer_cols, const char* rname);
 
 
 /** Destroys a pileup data structure.
@@ -77,21 +71,22 @@ void print_pileup_data(plp_data pileup);
 void print_bedmethyl(plp_data pileup, char *ref, int rstart);
 
 
-/** Generates medaka-style feature data in a region of a bam.
+/** Generates base counts from a region of a bam.
  *
- *  @param region 1-based region string.
  *  @param bam_file input aligment file.
- *  @param ref reference sequence corresponding to region.
- *  @param rstart the 0-based start of the reference.
- *  @param threshold decision boundary for mod. base calling.
+ *  @param chr bam target name.
+ *  @param start start position of chr to consider.
+ *  @param end end position of chr to consider.
+ *  @param lowthreshold highest probability to call base as canonical.
+ *  @param highthreshold lowest probablity to call base as modified.
  *  @returns a pileup data pointer.
  *
  *  The return value can be freed with destroy_plp_data.
  *
  */
 plp_data calculate_pileup(
-        const char *region, const char *bam_file, const char *read_group,
-        char *ref, int rstart, float threshold);
+    const char *bam_file, const char *chr, int start, int end,
+    const char *read_group, int lowthreshold, int highthreshold);
 
 
 #endif

@@ -1,5 +1,5 @@
-#ifndef _MEDAKA_BAMITER_H
-#define _MEDAKA_BAMITER_H
+#ifndef _MODBAMBED_BAMITER_H
+#define _MODBAMBED_BAMITER_H
 
 #include <stdbool.h>
 #include "htslib/sam.h"

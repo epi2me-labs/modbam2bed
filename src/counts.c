@@ -11,9 +11,10 @@
 #include "htslib/sam.h"
 #include "htslib/faidx.h"
 
-#include "medaka_bamiter.h"
-#include "medaka_common.h"
-#include "medaka_counts.h"
+#include "bamiter.h"
+#include "common.h"
+#include "counts.h"
+#include "args.h"
 
 #define bam1_seq(b) ((b)->data + (b)->core.n_cigar*4 + (b)->core.l_qname)
 #define bam1_seqi(s, i) (bam_seqi((s), (i)))
@@ -31,7 +32,7 @@
  *  The return value can be freed with destroy_plp_data.
  *
  */
-plp_data create_plp_data(size_t buffer_cols, char *rname) {
+plp_data create_plp_data(size_t buffer_cols, const char *rname) {
     plp_data data = xalloc(1, sizeof(_plp_data), "plp_data");
     data->buffer_cols = buffer_cols;
     data->n_cols = 0;
@@ -101,10 +102,8 @@ void print_bedmethyl(plp_data pileup, char *ref, int rstart){
     for (size_t i = 0; i < pileup->n_cols; ++i) {
         size_t pos = pileup->major[i];
         // check if this is a position we care about, this could be better by passing
-        // in list of relevant contexts. Could also be done in calculate_pileup (though
-        // wouldn't make that function faster as tag parsing is bottleneck).
-        //
-        // eg. cCagg, ccaGg, cCtgg, cCtgg
+        // in list of relevant contexts:
+        //     eg. cCagg, ccaGg, cCtgg, cCtgg
         // where the upper case base corresponds to pos
         char rbase = ref[pos - rstart];
         if (rbase == 'C'){
@@ -118,7 +117,6 @@ void print_bedmethyl(plp_data pileup, char *ref, int rstart){
         else {
             continue;
         }
-
         // calculate depth on strand
         // TODO: should do this with and without dels
         size_t depth = 0;
@@ -162,42 +160,22 @@ int pileup_cd_destroy(void *data, const bam1_t *b, bam_pileup_cd *cd) {
 }
 
 
-
 /** Generates base counts from a region of a bam.
  *
- *  @param region 1-based region string.
  *  @param bam_file input aligment file.
- *  @param ref reference sequence corresponding to region.
- *  @param rstart the 0-based start of the reference.
- *  @param threshold decision boundary for mod. base calling.
+ *  @param chr bam target name.
+ *  @param start start position of chr to consider.
+ *  @param end end position of chr to consider.
+ *  @param lowthreshold highest probability to call base as canonical.
+ *  @param highthreshold lowest probablity to call base as modified.
  *  @returns a pileup data pointer.
  *
  *  The return value can be freed with destroy_plp_data.
  *
  */
 plp_data calculate_pileup(
-        const char *region, const char *bam_file, const char *read_group,
-        char *ref, int rstart, float threshold) {
-
-    // extract `chr`:`start`-`end` from `region`
-    //   (start is one-based and end-inclusive),
-    //   hts_parse_reg below sets return value to point
-    //   at ":", copy the input then set ":" to null terminator
-    //   to get `chr`.
-    //   TODO: just pass in chrom, start, end
-    int start, end;
-    char *chr = xalloc(strlen(region) + 1, sizeof(char), "chr");
-    strcpy(chr, region);
-    char *reg_chr = (char *) hts_parse_reg(chr, &start, &end);
-    // start and end now zero-based end exclusive
-    if (reg_chr) {
-        *reg_chr = '\0';
-    } else {
-        fprintf(stderr, "Failed to parse region: '%s'.\n", region);
-    }
-    if (rstart != start) {
-        fprintf(stderr, "Passed and calcluated coords don't match.\n");
-    }
+        const char *bam_file, const char *chr, int start, int end,
+        const char *read_group, int lowthreshold, int highthreshold) {
 
     // open bam etc.
     htsFile *fp = hts_open(bam_file, "rb");
@@ -205,14 +183,29 @@ plp_data calculate_pileup(
     sam_hdr_t *hdr = sam_hdr_read(fp);
     if (hdr == 0 || idx == 0 || fp == 0) {
         hts_close(fp); hts_idx_destroy(idx); sam_hdr_destroy(hdr);
-        free(chr);
         fprintf(stderr, "Failed to read .bam file '%s'.", bam_file);
         return NULL;
     }
 
+    // find the target index for query below
+    int mytid = -1;
+    for (int i=0; i < hdr->n_targets; ++i) {
+        if(!strcmp(hdr->target_name[i], chr)) {
+            mytid = i;
+            break;
+        }
+    }
+    if (mytid == -1) {
+        hts_close(fp); hts_idx_destroy(idx); sam_hdr_destroy(hdr);
+        fprintf(stderr, "Failed to find reference sequence '%s' in bam '%s'.", chr, bam_file);
+        return NULL;
+
+    }
+
     // setup bam interator
     mplp_data *data = xalloc(1, sizeof(mplp_data), "pileup init data");
-    data->fp = fp; data->hdr = hdr; data->iter = bam_itr_querys(idx, hdr, region);
+    data->fp = fp; data->hdr = hdr;
+    data->iter = bam_itr_queryi(idx, mytid, start, end);
     data->min_mapQ = 1; data->read_group = read_group;
 
     bam_mplp_t mplp = bam_mplp_init(1, read_bam, (void **)& data);
@@ -222,13 +215,12 @@ plp_data calculate_pileup(
     bam_mplp_constructor(mplp, pileup_cd_create);
     bam_mplp_destructor(mplp, pileup_cd_destroy);
 
-    // allocate output, not doing insertions here
+    // allocate output, not doing insertions here, so know maximum width
     plp_data pileup = create_plp_data(end - start, chr);
 
     // get counts
-    size_t major_col = 0;  // index into `pileup` corresponding to pos
-    int n_cols = 0;        // number of processed columns (including insertions)
-
+    int n_cols = 0;  // number of processed columns (not all ref positions included)
+    size_t major_col = 0;
     int last_pos = start - 1;
     while ((ret=bam_mplp_auto(mplp, &tid, &pos, &n_plp, plp) > 0)) {
         const char *c_name = data->hdr->target_name[tid];
@@ -241,7 +233,7 @@ plp_data calculate_pileup(
         
         n_cols++;
         last_pos = pos;
-        pileup->major[major_col / featlen] = pos;  // dont need insert columns for this
+        pileup->major[n_cols] = pos;  // dont need insert columns for this
 
         // loop through all reads at this position
         for (int i = 0; i < n_plp; ++i) {
@@ -267,11 +259,9 @@ plp_data calculate_pileup(
                     //    mod[0].canonical_base, mod[0].modified_base, pos);
                     // make decision between mod and unmod.
                     //float q = -10 * log10(1 - ((mod[0].qual + 0.5) / 256)) + 0.5;
-                    const int lowbound = (int)(threshold * 255);
-                    const int highbound = (int)(threshold * 255);
-                    if (mod[0].qual > highbound) {
+                    if (mod[0].qual > highthreshold) {
                         base_i = bam_is_rev(p->b) ? rev_mod : fwd_mod;
-                    } else if (mod[0].qual <  lowbound) {
+                    } else if (mod[0].qual < lowthreshold) {
                         // canonical
                         if bam_is_rev(p->b) base_j += 16;
                         base_i = num2countbase[base_j];
@@ -298,8 +288,6 @@ plp_data calculate_pileup(
     bam_mplp_destroy(mplp);
     free(data);
     free(plp);
-    free(chr);
-
     hts_close(fp);
     hts_idx_destroy(idx);
     sam_hdr_destroy(hdr);
@@ -308,55 +296,64 @@ plp_data calculate_pileup(
 }
 
 
-// Demonstrates usage
-int main(int argc, char *argv[]) {
-    if(argc < 4) {
-        fprintf(stderr, "Usage %s <bam> <region> <ref. fasta> <threshold>\n", argv[0]);
-        exit(1);
-    }
-    const char *bam_file = argv[1];
-    const char *reg = argv[2];
-    const char *fasta = argv[3];
-    const float threshold = atof(argv[4]);
-    const char* read_group = NULL;
+// Process a region
+void process_region(arguments_t args, const char *chr, int start, int end, char *ref) {
+    fprintf(stderr, "Processing: %s:%d-%d\n", chr, start, end);
+    plp_data pileup = calculate_pileup(
+        args.bam, chr, start, end,
+        args.read_group, args.lowthreshold, args.highthreshold);
+    if (pileup == NULL) return;
+    print_bedmethyl(pileup, ref, start);
+    destroy_plp_data(pileup);
+}
 
-    if (threshold < 0 || threshold > 1.0) {
-        fprintf(stderr, "ERROR: threshold paramer must be in (0,1)\n");
+
+// Run program
+int main(int argc, char *argv[]) {
+    arguments_t args = parse_arguments(argc, argv);
+    if (args.highthreshold < args.lowthreshold) {
+        fprintf(stderr, "ERROR: --highthreshold must be larger than --lowthreshold\n");
         exit(1);
-    } else {
-        fprintf(stderr, "Using threshold %.3f\n", threshold);
     }
 
     // load ref sequence
-    faidx_t *fai = fai_load(fasta);
-    int len;
-    char* ref = fai_fetch(fai, reg, &len);
-    if (len < 0) {
-        fprintf(stderr, "ERROR: Could not read fasta file: '%s'\n", fasta);
-        exit(1);
-    }
-    int start, end;
-    char *chr = xalloc(strlen(reg) + 1, sizeof(char), "chr");
-    strcpy(chr, reg);
-    char *reg_chr = (char *) hts_parse_reg(chr, &start, &end);
-    // start and end now zero-based end exclusive
-    if (reg_chr) {
-        *reg_chr = '\0';
+    faidx_t *fai = fai_load(args.ref);
+    if (fai == NULL) exit(1);
+    if (args.region == NULL) {
+        // process all regions
+        int nseq = faidx_nseq(fai);
+        for (int i = 0; i < nseq; ++i) {
+            const char *chr = faidx_iseq(fai, i);
+            int len = faidx_seq_len(fai, chr);
+            int alen;
+            char *ref = faidx_fetch_seq(fai, chr, 0, len, &alen);
+            fprintf(stderr, "Fetched %s, %i %i\n", chr, len, alen);
+            process_region(args, chr, 0, len, ref);
+            free((void*) chr);
+            free(ref);
+        }
+        exit(0);
     } else {
-        fprintf(stderr, "Failed to parse region: '%s'.\n", reg);
-    }
-    fprintf(stderr, "Reference: %s:%d-%d\n", chr, start, end);
+        // process given region
+        int len;
+        char *ref = fai_fetch(fai, args.region, &len);
+        if (len < 0) {
+            exit(1);
+        }
+        int start, end;
+        char *chr = xalloc(strlen(args.region) + 1, sizeof(char), "chr");
+        strcpy(chr, args.region);
+        char *reg_chr = (char *) hts_parse_reg(chr, &start, &end);
+        // start and end now zero-based end exclusive
+        if (reg_chr) {
+            *reg_chr = '\0';  // sets chr to be terminated at correct point
+        } else {
+            fprintf(stderr, "Failed to parse region: '%s'.\n", args.region);
+        }
+        process_region(args, chr, start, end, ref);
 
-    plp_data pileup = calculate_pileup(reg, bam_file, read_group, ref, start, threshold);
-    if (pileup == NULL) {
-        free(chr); free(ref); exit(1);
+        free(chr);
+        free(ref);
     }
-    //size_t pstart = pileup->major[0]; size_t pend = 1 + pileup->major[pileup->n_cols - 1];
-    //fprintf(stderr, "Pileup is length %zu, with buffer of %zu columns\n", pileup->n_cols, pileup->buffer_cols);
-    //fprintf(stderr, "Pileup: %s:%zu-%zu\n", pileup->rname, pstart, pend);
-    print_bedmethyl(pileup, ref, start);
-    destroy_plp_data(pileup);
-    free(chr);
-    free(ref);
-    exit(0); 
+    exit(0);
 }

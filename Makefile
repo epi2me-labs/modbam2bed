@@ -1,9 +1,11 @@
 OS := $(shell uname)
 ifeq ($(OS), Darwin)
-SEDI=sed -i '.bak'
-export LIBRARY_PATH=/usr/local/Cellar/openssl@1.1/1.1.1j/lib
+    SEDI=sed -i '.bak'
+    export LIBRARY_PATH=/usr/local/Cellar/openssl@1.1/1.1.1k/lib
+    ARGP ?= /usr/local/Cellar/argp-standalone/1.3/lib/libargp.a
 else
-SEDI=sed -i
+    SEDI=sed -i
+    ARGP ?=
 endif
 
 
@@ -18,10 +20,10 @@ clean_htslib:
 	cd htslib && make clean || exit 0
 
 
-pileup: libhts.a src/medaka_common.c src/medaka_counts.c src/medaka_bamiter.c
+pileup: libhts.a src/common.c src/counts.c src/bamiter.c src/args.c 
 	gcc -pthread  -g -Wall -fstack-protector-strong -D_FORTIFY_SOURCE=2 -fPIC -std=c99 -msse3 -O3 \
 		-Isrc -Ihtslib \
-		src/medaka_common.c src/medaka_counts.c src/medaka_bamiter.c libhts.a \
+		$^ $(ARGP) \
 		-lm -lz -llzma -lbz2 -lpthread -lcurl -lcrypto \
 		-o $(@)
 
