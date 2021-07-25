@@ -20,7 +20,7 @@ clean_htslib:
 	cd htslib && make clean || exit 0
 
 
-pileup: libhts.a src/common.c src/counts.c src/bamiter.c src/args.c 
+modbam2bed: libhts.a src/common.c src/counts.c src/bamiter.c src/args.c 
 	gcc -pthread  -g -Wall -fstack-protector-strong -D_FORTIFY_SOURCE=2 -fPIC -std=c99 -msse3 -O3 \
 		-Isrc -Ihtslib \
 		$^ $(ARGP) \
@@ -30,6 +30,6 @@ pileup: libhts.a src/common.c src/counts.c src/bamiter.c src/args.c
 
 .PHONY: clean
 clean: clean_htslib
-	rm pileup
+	rm modbam2bed
 
 

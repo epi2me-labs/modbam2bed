@@ -6,11 +6,15 @@
 const char *argp_program_version = "0.0.4";
 const char *argp_program_bug_address = "chris.wright@nanoporetech.com";
 static char doc[] = 
-  "modbambed -- summarised a BAM with modified base tags to bed-methyl.\
-  \vPositions absent from the methylation tags are assumed to be canonical. \
-  Postions with modified probability between upper and lower thresholds \
-  are removed from the counting process.";
-static char args_doc[] = "[options] <reads.bam> <reference.fasta>";
+ "modbam2bed -- summarise a BAM with modified base tags to bedMethyl.\
+ \vPositions absent from the methylation tags are assumed to be canonical. \
+ Positions with modified probability between upper and lower thresholds\
+ are removed from the counting process. Column 5 (\"score\") of the output\
+ is calculated as the proportion of bases called as the canonical or modified\
+ reference base with respect to the number of spanning reads, scaled to a\
+ maximum of 1000. Column 11 is the percentage of reference base calls identified\
+ as being modified.";
+static char args_doc[] = " <reads.bam> <reference.fasta> > ";
 static struct argp_option options[] = {
     {"canon_threshold", 'a', "CANON_THRESHOLD", 0,
         "Bases with mod. probability < CANON_THRESHOLD are counted as canonical."},
@@ -20,6 +24,8 @@ static struct argp_option options[] = {
         "Genomic region to process."},
     {"read_group", 'g', "READ_GROUP", 0,
         "Only process reads from given read group."},
+    {"extended", 'e', 0, 0,
+        "Output extended bedMethyl including counts of canonical, modified, and filtered bases (in that order)."},
     { 0 }
 };
 
@@ -44,6 +50,9 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state) {
             break;
         case 'r':
             arguments->region = arg;
+            break;
+        case 'e':
+            arguments->extended = true;
             break;
         case 'g':
             arguments->read_group = arg;
@@ -83,6 +92,7 @@ arguments_t parse_arguments(int argc, char** argv) {
     args.ref = NULL;
     args.region = NULL;
     args.read_group = NULL;
+    args.extended = true;
     argp_parse(&argp, argc, argv, 0, 0, &args);
     return args;
 }

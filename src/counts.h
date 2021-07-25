@@ -1,6 +1,8 @@
 #ifndef _MODBAMBED_COUNTS_H
 #define _MODBAMBED_COUNTS_H
 
+#include <stdbool.h>
+
 // medaka-style feature data
 typedef struct _plp_data {
     size_t buffer_cols;
@@ -13,12 +15,14 @@ typedef _plp_data *plp_data;
 
 
 // medaka-style base encoding - augmented with (a) modified base counts
-static const char plp_bases[] = "acgtACGTdDmM";
-static const size_t featlen = 12; // len of the above
+static const char plp_bases[] = "acgtACGTdDmMfF";  // f for "filtered"
+static const size_t featlen = 14; // len of the above
 static const size_t fwd_del = 9;  // position of D
 static const size_t rev_del = 8;  // position of d
 static const size_t fwd_mod = 11; // position of M
 static const size_t rev_mod = 10; // position of m
+static const size_t fwd_filt = 13; // position of F
+static const size_t rev_filt = 12; // position of f
 
 // convert 16bit IUPAC (+16 for strand) to plp_bases index
 static const int num2countbase[32] = {
@@ -65,10 +69,11 @@ void print_pileup_data(plp_data pileup);
  *  @param pileup a pileup counts structure.
  *  @param ref reference sequence.
  *  @param rstart starting reference coordinate corresponding to ref.
+ *  @param extended whether to include counts of canonical, modified and filtered bases.
  *  @returns void
  *
  */
-void print_bedmethyl(plp_data pileup, char *ref, int rstart);
+void print_bedmethyl(plp_data pileup, char *ref, int rstart, bool extended);
 
 
 /** Generates base counts from a region of a bam.

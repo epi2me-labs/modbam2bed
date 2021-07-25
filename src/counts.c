@@ -85,18 +85,19 @@ void print_pileup_data(plp_data pileup){
  *  @param pileup a pileup counts structure.
  *  @param ref reference sequence.
  *  @param rstart starting reference coordinate corresponding to ref.
+ *  @param extended whether to include counts of canonical, modified and filtered bases.
  *  @returns void
  *
  */
-void print_bedmethyl(plp_data pileup, char *ref, int rstart){
+void print_bedmethyl(plp_data pileup, char *ref, int rstart, bool extended){
     // ecoli1  100718  100719  .       4       +       100718  100719  0,0,0   3       0
     
     // this is a bit naff, we should introspect these indices, or have them
     // as data in the header.
-    const size_t numbases = 6;
-    size_t fwdbases[] = {4,5,6,7,9,11};
-    size_t revbases[] = {0,1,2,3,8,10};
-    size_t ci, mi;
+    const size_t numbases = 7;
+    size_t fwdbases[] = {4,5,6,7,9,11,13};
+    size_t revbases[] = {0,1,2,3,8,10,12};
+    size_t ci, mi, fi;
     size_t *bases;
     bool isrev;
     for (size_t i = 0; i < pileup->n_cols; ++i) {
@@ -107,42 +108,47 @@ void print_bedmethyl(plp_data pileup, char *ref, int rstart){
         // where the upper case base corresponds to pos
         char rbase = ref[pos - rstart];
         if (rbase == 'C'){
-            isrev = 0; mi = fwd_mod; ci = 5;
+            isrev = 0; mi = fwd_mod; fi = fwd_filt; ci = 5;
             bases = fwdbases;
         } else if (rbase == 'G') {
             // G on rev strand is C in reads
-            isrev = 1; mi = rev_mod; ci = 2;
+            isrev = 1; mi = rev_mod; fi = rev_filt; ci = 2;
             bases = revbases;
         }
         else {
             continue;
         }
         // calculate depth on strand
-        // TODO: should do this with and without dels
         size_t depth = 0;
         for (size_t j = 0; j < numbases; ++j) {
             depth += pileup->matrix[i * featlen + bases[j]];
         }
         // https://www.encodeproject.org/data-standards/wgbs/
         // column 11: "Percentage of reads that show methylation at this position in the genome"
-        //  - Seems to disregard posibility of non-C canonical calls
+        //  - Seems to disregard possibility of non-C canonical calls
         // lets calculate this as proportion of meth:non-meth C
         size_t cd = pileup->matrix[i * featlen + ci];
         size_t md = pileup->matrix[i * featlen + mi];
+        size_t fd = pileup->matrix[i * featlen + fi];
         size_t tot = cd + md;
-        float meth = tot == 0 ? 0 : (100.0f * md) / (cd + md);
+        float meth = tot == 0 ? 0 : (100.0f * md) / tot;
         // column 5: "Score from 0-1000. Capped number of reads"
-        // lets go with proportion of mod:depth.
-        size_t score = depth == 0 ? 0 : 1000 * ((float) md) / depth;
+        // lets go with proportion of (mod or canon):(mod or canon or filtered)
+        size_t score = depth == 0 ? 0 : (1000 * tot) / depth;
 
         fprintf(stdout,
             "%s\t%zu\t%zu\t"
-            "5mC\t%zu\t%c\t%"
-            "zu\t%zu\t0,0,0\t%zu\t%.2f\n",
+            "5mC\t%zu\t%c\t"
+            "%zu\t%zu\t0,0,0\t%zu\t%.2f",
             pileup->rname, pos, pos + 1,
             score, "+-"[isrev],
             pos, pos + 1, depth, meth
         );
+        if (extended) {
+            fprintf(stdout, "\t%zu\t%zu\t%zu\n", cd, md, fd);
+        } else {
+            fprintf(stdout, "\n");
+        }
     }
 }
 
@@ -267,7 +273,7 @@ plp_data calculate_pileup(
                         base_i = num2countbase[base_j];
                     } else {
                         // filter out
-                        continue;
+                        base_i = bam_is_rev(p->b) ? rev_filt : fwd_filt;
                     }
                 } else {
                     // no mod call - assume this means canonical
@@ -303,7 +309,7 @@ void process_region(arguments_t args, const char *chr, int start, int end, char 
         args.bam, chr, start, end,
         args.read_group, args.lowthreshold, args.highthreshold);
     if (pileup == NULL) return;
-    print_bedmethyl(pileup, ref, start);
+    print_bedmethyl(pileup, ref, start, args.extended);
     destroy_plp_data(pileup);
 }
 
