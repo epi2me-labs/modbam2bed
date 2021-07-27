@@ -8,8 +8,12 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <stdlib.h>
+#include <pthread.h>
+#include <unistd.h>
 #include "htslib/sam.h"
 #include "htslib/faidx.h"
+//#include "threadpool.h"
+#include "htslib/thread_pool.h"
 
 #include "bamiter.h"
 #include "common.h"
@@ -36,6 +40,7 @@ plp_data create_plp_data(size_t buffer_cols, const char *rname) {
     plp_data data = xalloc(1, sizeof(_plp_data), "plp_data");
     data->buffer_cols = buffer_cols;
     data->n_cols = 0;
+    //fprintf(stderr, buffer_cols); 
     data->matrix = xalloc(featlen * buffer_cols, sizeof(size_t), "matrix");
     data->major = xalloc(buffer_cols, sizeof(size_t), "major");
     data->rname = xalloc(strlen(rname) + 1, sizeof(char), "chr");
@@ -123,6 +128,7 @@ void print_bedmethyl(plp_data pileup, char *ref, int rstart, bool extended){
         for (size_t j = 0; j < numbases; ++j) {
             depth += pileup->matrix[i * featlen + bases[j]];
         }
+        if (depth == 0) continue;
         // https://www.encodeproject.org/data-standards/wgbs/
         // column 11: "Percentage of reads that show methylation at this position in the genome"
         //  - Seems to disregard possibility of non-C canonical calls
@@ -227,18 +233,12 @@ plp_data calculate_pileup(
     // get counts
     int n_cols = 0;  // number of processed columns (not all ref positions included)
     size_t major_col = 0;
-    int last_pos = start - 1;
     while ((ret=bam_mplp_auto(mplp, &tid, &pos, &n_plp, plp) > 0)) {
         const char *c_name = data->hdr->target_name[tid];
         if (strcmp(c_name, chr) != 0) continue;
         if (pos < start) continue;
         if (pos >= end) break;
 
-        // pileup can skip positions with no coverage
-        if (pos - last_pos > 1) fprintf(stderr, "WARNING: no reads span: %s:%d-%d\n", chr, last_pos+1, pos);
-        
-        n_cols++;
-        last_pos = pos;
         pileup->major[n_cols] = pos;  // dont need insert columns for this
 
         // loop through all reads at this position
@@ -286,8 +286,8 @@ plp_data calculate_pileup(
             }
         }
         major_col += featlen;
+        n_cols++;
     }
-    if ((end - 1) - last_pos > 1) fprintf(stderr, "WARNING: no reads span: %s:%d-%d\n", chr, last_pos, end);
     pileup->n_cols = n_cols;
 
     bam_itr_destroy(data->iter);
@@ -302,9 +302,74 @@ plp_data calculate_pileup(
 }
 
 
-// Process a region
-void process_region(arguments_t args, const char *chr, int start, int end, char *ref) {
+typedef struct twarg {
+    arguments_t args;
+    const char *chr;
+    int start;
+    int end;
+} twarg;
+
+void *pileup_worker(void *arg) {
+    twarg j = *(twarg *)arg;
+    plp_data pileup = calculate_pileup(
+        j.args.bam, j.chr, j.start, j.end,
+        j.args.read_group, j.args.lowthreshold, j.args.highthreshold);
+    free(arg);
+    return pileup;
+}
+
+// Process and print a single region using a threadpool
+void process_region_threads(arguments_t args, const char *chr, int start, int end, char *ref) {
+    // create thread pool
+    hts_tpool *p = hts_tpool_init(args.threads);
+    hts_tpool_process *q = hts_tpool_process_init(p, 2 * args.threads, 0);
+    hts_tpool_result *r;
+    const int width = 1000000;
+
     fprintf(stderr, "Processing: %s:%d-%d\n", chr, start, end);
+    int nregs = 1 + (end - start) / width; float done = 0;
+    for (int rstart = start; rstart < end; rstart += width) {
+        twarg *tw_args = xalloc(1, sizeof(*tw_args), "thread worker args");  // freed in worker
+        tw_args->args = args;
+        tw_args->chr = chr; tw_args->start = rstart; tw_args->end=min(rstart + width, end);
+        int blk;
+        do {
+            blk = hts_tpool_dispatch2(p, q, pileup_worker, tw_args, 1);
+            if ((r = hts_tpool_next_result(q))) {
+                plp_data res = (plp_data)hts_tpool_result_data(r);
+                if (res != NULL) {
+                    print_bedmethyl(res, ref, start, args.extended);
+                    destroy_plp_data(res);
+                    done++;
+                    fprintf(stderr, "\r%.1f %%", 100*done/nregs);
+                }
+                hts_tpool_delete_result(r, 0);
+            }
+        } while (blk == -1);
+    }
+
+    // wait for jobs, then collect.
+    hts_tpool_process_flush(q);
+    while ((r = hts_tpool_next_result(q))) {
+        plp_data res = (plp_data)hts_tpool_result_data(r);
+        if (res != NULL) {
+            print_bedmethyl(res, ref, start, args.extended);
+            destroy_plp_data(res);
+            done++;
+            fprintf(stderr, "\r%.1f %%", 100*done/nregs);
+        }
+        hts_tpool_delete_result(r, 0);
+    }
+    fprintf(stderr, "\r100 %%  ");
+    fprintf(stderr, "\n");
+    // clean up pool
+    hts_tpool_process_destroy(q);
+    hts_tpool_destroy(p);
+}
+
+
+// Process and print a single region
+void process_region(arguments_t args, const char *chr, int start, int end, char *ref) {
     plp_data pileup = calculate_pileup(
         args.bam, chr, start, end,
         args.read_group, args.lowthreshold, args.highthreshold);
@@ -334,7 +399,7 @@ int main(int argc, char *argv[]) {
             int alen;
             char *ref = faidx_fetch_seq(fai, chr, 0, len, &alen);
             fprintf(stderr, "Fetched %s, %i %i\n", chr, len, alen);
-            process_region(args, chr, 0, len, ref);
+            process_region_threads(args, chr, 0, len, ref);
             free((void*) chr);
             free(ref);
         }
@@ -350,16 +415,18 @@ int main(int argc, char *argv[]) {
         char *chr = xalloc(strlen(args.region) + 1, sizeof(char), "chr");
         strcpy(chr, args.region);
         char *reg_chr = (char *) hts_parse_reg(chr, &start, &end);
+        end = min(end, len);
         // start and end now zero-based end exclusive
         if (reg_chr) {
             *reg_chr = '\0';  // sets chr to be terminated at correct point
         } else {
             fprintf(stderr, "Failed to parse region: '%s'.\n", args.region);
         }
-        process_region(args, chr, start, end, ref);
+        process_region_threads(args, chr, start, end, ref);
 
         free(chr);
         free(ref);
     }
+    fai_destroy(fai);
     exit(0);
 }

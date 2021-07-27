@@ -38,6 +38,7 @@ modbambed -- summarise a BAM with modified base tags to bedMethyl.
                              canonical, modified, and filtered bases (in that
                              order).
   -g, --read_group=READ_GROUP   Only process reads from given read group.
+  -t, --threads=THREADS      Number of threads for BAM processing.
   -r, --region=chr:start-end Genomic region to process.
   -?, --help                 Give this help list
       --usage                Give a short usage message

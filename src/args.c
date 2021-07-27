@@ -26,6 +26,8 @@ static struct argp_option options[] = {
         "Only process reads from given read group."},
     {"extended", 'e', 0, 0,
         "Output extended bedMethyl including counts of canonical, modified, and filtered bases (in that order)."},
+    {"threads", 't', "THREADS", 0,
+        "Number of threads for BAM processing."},
     { 0 }
 };
 
@@ -56,6 +58,9 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state) {
             break;
         case 'g':
             arguments->read_group = arg;
+            break;
+        case 't':
+            arguments->threads = atoi(arg);
             break;
         case ARGP_KEY_NO_ARGS:
             argp_usage (state);
@@ -92,7 +97,8 @@ arguments_t parse_arguments(int argc, char** argv) {
     args.ref = NULL;
     args.region = NULL;
     args.read_group = NULL;
-    args.extended = true;
+    args.extended = false;
+    args.threads = 1;
     argp_parse(&argp, argc, argv, 0, 0, &args);
     return args;
 }

@@ -9,8 +9,9 @@ typedef struct arguments {
     char* region;
     char* read_group;
     bool extended;
-    float lowthreshold;
-    float highthreshold;
+    int threads;
+    int lowthreshold;
+    int highthreshold;
 } arguments_t;
 
 arguments_t parse_arguments(int argc, char** argv);
