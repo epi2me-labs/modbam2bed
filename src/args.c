@@ -1,4 +1,5 @@
 #include <stdlib.h>
+#include <string.h>
 #include <argp.h>
 
 #include "args.h"
@@ -20,6 +21,8 @@ static struct argp_option options[] = {
         "Bases with mod. probability < CANON_THRESHOLD are counted as canonical."},
     {"mod_threshold", 'b', "MOD_THRESHOLD", 0,
         "Bases with mod. probability > MOD_THRESHOLD are counted as modified."},
+    {"mod_base", 'm', "MODIFIED_BASE", 0,
+        "Modified base of interest, one of: 5mC, 5hmC, 5fC, 5caC, 5hmU, 5fU, 5caU, 6mA, 5oxoG, Xao."},
     {"region", 'r', "chr:start-end", 0,
         "Genomic region to process."},
     {"read_group", 'g', "READ_GROUP", 0,
@@ -49,6 +52,15 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state) {
                 argp_error (state, "Threshold parameter must be in (0,1), got %s", arg);
             }
             arguments->highthreshold = (int)(thresh * 255);
+            break;
+        case 'm':
+            for (size_t i = 0; i < n_mod_bases; ++i) {
+                fprintf(stderr, "%s\n", mod_bases[i].abbrev);
+                if (!strcmp(mod_bases[i].abbrev, arg)) {
+                    arguments->mod_base = mod_bases[i];
+                    break;
+                }
+            }
             break;
         case 'r':
             arguments->region = arg;
@@ -91,6 +103,7 @@ static struct argp argp = {options, parse_opt, args_doc, doc};
 
 arguments_t parse_arguments(int argc, char** argv) {
     arguments_t args;
+    args.mod_base = default_mod_base;
     args.lowthreshold = (int)(0.33 * 255);
     args.highthreshold = (int)(0.66 * 255);
     args.bam = NULL;

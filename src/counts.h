@@ -70,10 +70,12 @@ void print_pileup_data(plp_data pileup);
  *  @param ref reference sequence.
  *  @param rstart starting reference coordinate corresponding to ref.
  *  @param extended whether to include counts of canonical, modified and filtered bases.
+ *  @param feature name to use for feature column of BED (e.g. 5mC).
+ *  @param canon_base canonical base to match.
  *  @returns void
  *
  */
-void print_bedmethyl(plp_data pileup, char *ref, int rstart, bool extended);
+void print_bedmethyl(plp_data pileup, char *ref, int rstart, bool extended, char* feature, char canon_base);
 
 
 /** Generates base counts from a region of a bam.
@@ -84,6 +86,7 @@ void print_bedmethyl(plp_data pileup, char *ref, int rstart, bool extended);
  *  @param end end position of chr to consider.
  *  @param lowthreshold highest probability to call base as canonical.
  *  @param highthreshold lowest probablity to call base as modified.
+ *  @param mod_base BAM code for modified base to report. (e.g. h for 5hmC).
  *  @returns a pileup data pointer.
  *
  *  The return value can be freed with destroy_plp_data.
@@ -91,7 +94,7 @@ void print_bedmethyl(plp_data pileup, char *ref, int rstart, bool extended);
  */
 plp_data calculate_pileup(
     const char *bam_file, const char *chr, int start, int end,
-    const char *read_group, int lowthreshold, int highthreshold);
+    const char *read_group, int lowthreshold, int highthreshold, char mod_base);
 
 
 #endif

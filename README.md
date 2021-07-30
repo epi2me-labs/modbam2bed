@@ -38,6 +38,8 @@ modbambed -- summarise a BAM with modified base tags to bedMethyl.
                              canonical, modified, and filtered bases (in that
                              order).
   -g, --read_group=READ_GROUP   Only process reads from given read group.
+  -m, --mod_base=MODIFIED_BASE   Modified base of interest, one of: 5mC, 5hmC,
+                             5fC, 5caC, 5hmU, 5fU, 5caU, 6mA, 5oxoG, Xao.
   -t, --threads=THREADS      Number of threads for BAM processing.
   -r, --region=chr:start-end Genomic region to process.
   -?, --help                 Give this help list
@@ -98,8 +100,8 @@ output which includes three additional columns reporting counts of relevant base
 
 The code has not been developed extensively and currently has some limitations:
 
- * Only 5mC is currently supported as a modified base.
- * All reference positions that are C (on forward or reverse strand) are
+ * All reference positions that are the canonical base (on forward or
+   reverse strand) equivalent to the modified base under consideration are
    reported; there's no support for filtering by biologically interesting
    motifs.
  * No option to combine per-strand counts into a total count (how to do this

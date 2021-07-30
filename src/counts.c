@@ -91,10 +91,12 @@ void print_pileup_data(plp_data pileup){
  *  @param ref reference sequence.
  *  @param rstart starting reference coordinate corresponding to ref.
  *  @param extended whether to include counts of canonical, modified and filtered bases.
+ *  @param feature name to use for feature column of BED (e.g. 5mC).
+ *  @param canon_base canonical base to match.
  *  @returns void
  *
  */
-void print_bedmethyl(plp_data pileup, char *ref, int rstart, bool extended){
+void print_bedmethyl(plp_data pileup, char *ref, int rstart, bool extended, char* feature, char canon_base){
     // ecoli1  100718  100719  .       4       +       100718  100719  0,0,0   3       0
     
     // this is a bit naff, we should introspect these indices, or have them
@@ -105,6 +107,14 @@ void print_bedmethyl(plp_data pileup, char *ref, int rstart, bool extended){
     size_t ci, mi, fi;
     size_t *bases;
     bool isrev;
+    char rc_canon_base = ' ';
+    size_t cif, cir;
+    if (canon_base == 'A') {cif=4; cir=3; rc_canon_base = 'T';}
+    else if (canon_base == 'C') {cif=5; cir=2; rc_canon_base = 'G';}
+    else if (canon_base == 'G') {cif=6; cir=1; rc_canon_base = 'C';}
+    else if (canon_base == 'T') {cif=7; cir=0; rc_canon_base = 'A';}
+    else {fprintf(stderr, "Unrecognised canonical base: '%c'\n", canon_base); exit(1);}
+
     for (size_t i = 0; i < pileup->n_cols; ++i) {
         size_t pos = pileup->major[i];
         // check if this is a position we care about, this could be better by passing
@@ -112,12 +122,12 @@ void print_bedmethyl(plp_data pileup, char *ref, int rstart, bool extended){
         //     eg. cCagg, ccaGg, cCtgg, cCtgg
         // where the upper case base corresponds to pos
         char rbase = ref[pos - rstart];
-        if (rbase == 'C'){
-            isrev = 0; mi = fwd_mod; fi = fwd_filt; ci = 5;
+        if (rbase == canon_base){
+            isrev = 0; mi = fwd_mod; fi = fwd_filt; ci = cif;
             bases = fwdbases;
-        } else if (rbase == 'G') {
+        } else if (rbase == rc_canon_base) {
             // G on rev strand is C in reads
-            isrev = 1; mi = rev_mod; fi = rev_filt; ci = 2;
+            isrev = 1; mi = rev_mod; fi = rev_filt; ci = cir;
             bases = revbases;
         }
         else {
@@ -144,10 +154,10 @@ void print_bedmethyl(plp_data pileup, char *ref, int rstart, bool extended){
 
         fprintf(stdout,
             "%s\t%zu\t%zu\t"
-            "5mC\t%zu\t%c\t"
+            "%s\t%zu\t%c\t"
             "%zu\t%zu\t0,0,0\t%zu\t%.2f",
             pileup->rname, pos, pos + 1,
-            score, "+-"[isrev],
+            feature, score, "+-"[isrev],
             pos, pos + 1, depth, meth
         );
         if (extended) {
@@ -180,6 +190,7 @@ int pileup_cd_destroy(void *data, const bam1_t *b, bam_pileup_cd *cd) {
  *  @param end end position of chr to consider.
  *  @param lowthreshold highest probability to call base as canonical.
  *  @param highthreshold lowest probablity to call base as modified.
+ *  @param mod_base BAM code for modified base to report. (e.g. h for 5hmC).
  *  @returns a pileup data pointer.
  *
  *  The return value can be freed with destroy_plp_data.
@@ -187,7 +198,7 @@ int pileup_cd_destroy(void *data, const bam1_t *b, bam_pileup_cd *cd) {
  */
 plp_data calculate_pileup(
         const char *bam_file, const char *chr, int start, int end,
-        const char *read_group, int lowthreshold, int highthreshold) {
+        const char *read_group, int lowthreshold, int highthreshold, char mod_base) {
 
     // open bam etc.
     htsFile *fp = hts_open(bam_file, "rb");
@@ -246,7 +257,7 @@ plp_data calculate_pileup(
             const bam_pileup1_t *p = plp[0] + i;
             if (p->is_refskip) continue;
 
-            int base_i;
+            int base_i = -1;
             if (p->is_del) {
                 // deletions are interesting for counting depth
                 base_i = bam_is_rev(p->b) ? rev_del : fwd_del;
@@ -256,24 +267,31 @@ plp_data calculate_pileup(
                 // Simple mod detection
                 size_t n_mods = 256;
                 hts_base_mod_state *mod_state = p->cd.p;
-                hts_base_mod mod[n_mods];
-                int nm = bam_mods_at_qpos(p->b, p->qpos, mod_state, mod, n_mods);
+                hts_base_mod allmod[n_mods];
+                int nm = bam_mods_at_qpos(p->b, p->qpos, mod_state, allmod, n_mods);
                 if (nm < 0 ) continue;  // ignore reads which give error
-                if (nm > 0 && mod[0].modified_base == 'm') {
-                    // just assume mC for now
-                    //fprintf(stderr, "Modified %c to %c at %d\n",
-                    //    mod[0].canonical_base, mod[0].modified_base, pos);
-                    // make decision between mod and unmod.
-                    //float q = -10 * log10(1 - ((mod[0].qual + 0.5) / 256)) + 0.5;
-                    if (mod[0].qual > highthreshold) {
-                        base_i = bam_is_rev(p->b) ? rev_mod : fwd_mod;
-                    } else if (mod[0].qual < lowthreshold) {
-                        // canonical
-                        if bam_is_rev(p->b) base_j += 16;
-                        base_i = num2countbase[base_j];
-                    } else {
-                        // filter out
-                        base_i = bam_is_rev(p->b) ? rev_filt : fwd_filt;
+                if (nm > 0) {
+                    hts_base_mod mod;
+                    for (int k = 0; k < nm && k < n_mods; ++k) {
+                        if (allmod[k].modified_base == mod_base) {
+                            mod = allmod[k];
+                            // we found our mod
+                            //fprintf(stderr, "Modified %c to %c at %d\n",
+                            //    mod.canonical_base, mod.modified_base, pos);
+                            // make decision between mod and unmod.
+                            //float q = -10 * log10(1 - ((mod[0].qual + 0.5) / 256)) + 0.5;
+                            if (mod.qual > highthreshold) {
+                                base_i = bam_is_rev(p->b) ? rev_mod : fwd_mod;
+                            } else if (mod.qual < lowthreshold) {
+                                // canonical
+                                if bam_is_rev(p->b) base_j += 16;
+                                base_i = num2countbase[base_j];
+                            } else {
+                                // filter out
+                                base_i = bam_is_rev(p->b) ? rev_filt : fwd_filt;
+                            }
+                            break;
+                        }
                     }
                 } else {
                     // no mod call - assume this means canonical
@@ -313,7 +331,7 @@ void *pileup_worker(void *arg) {
     twarg j = *(twarg *)arg;
     plp_data pileup = calculate_pileup(
         j.args.bam, j.chr, j.start, j.end,
-        j.args.read_group, j.args.lowthreshold, j.args.highthreshold);
+        j.args.read_group, j.args.lowthreshold, j.args.highthreshold, j.args.mod_base.code);
     free(arg);
     return pileup;
 }
@@ -338,7 +356,7 @@ void process_region_threads(arguments_t args, const char *chr, int start, int en
             if ((r = hts_tpool_next_result(q))) {
                 plp_data res = (plp_data)hts_tpool_result_data(r);
                 if (res != NULL) {
-                    print_bedmethyl(res, ref, start, args.extended);
+                    print_bedmethyl(res, ref, start, args.extended, args.mod_base.abbrev, args.mod_base.base);
                     destroy_plp_data(res);
                     done++;
                     fprintf(stderr, "\r%.1f %%", 100*done/nregs);
@@ -353,7 +371,7 @@ void process_region_threads(arguments_t args, const char *chr, int start, int en
     while ((r = hts_tpool_next_result(q))) {
         plp_data res = (plp_data)hts_tpool_result_data(r);
         if (res != NULL) {
-            print_bedmethyl(res, ref, start, args.extended);
+            print_bedmethyl(res, ref, start, args.extended, args.mod_base.abbrev, args.mod_base.base);
             destroy_plp_data(res);
             done++;
             fprintf(stderr, "\r%.1f %%", 100*done/nregs);
@@ -372,9 +390,9 @@ void process_region_threads(arguments_t args, const char *chr, int start, int en
 void process_region(arguments_t args, const char *chr, int start, int end, char *ref) {
     plp_data pileup = calculate_pileup(
         args.bam, chr, start, end,
-        args.read_group, args.lowthreshold, args.highthreshold);
+        args.read_group, args.lowthreshold, args.highthreshold, args.mod_base.code);
     if (pileup == NULL) return;
-    print_bedmethyl(pileup, ref, start, args.extended);
+    print_bedmethyl(pileup, ref, start, args.extended, args.mod_base.abbrev, args.mod_base.base);
     destroy_plp_data(pileup);
 }
 
@@ -386,6 +404,9 @@ int main(int argc, char *argv[]) {
         fprintf(stderr, "ERROR: --highthreshold must be larger than --lowthreshold\n");
         exit(1);
     }
+    fprintf(
+        stderr, "Analysing: %s (%s, %c>%c)\n",
+        args.mod_base.name, args.mod_base.abbrev, args.mod_base.base, args.mod_base.code);
 
     // load ref sequence
     faidx_t *fai = fai_load(args.ref);
