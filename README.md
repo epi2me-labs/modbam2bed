@@ -34,6 +34,7 @@ modbambed -- summarise a BAM with modified base tags to bedMethyl.
   -b, --mod_threshold=MOD_THRESHOLD
                              Bases with mod. probability > MOD_THRESHOLD are
                              counted as modified.
+  -c, --cpg                  Output records filtered to CpG sited.
   -e, --extended             Output extended bedMethyl including counts of
                              canonical, modified, and filtered bases (in that
                              order).
@@ -100,10 +101,10 @@ output which includes three additional columns reporting counts of relevant base
 
 The code has not been developed extensively and currently has some limitations:
 
- * All reference positions that are the canonical base (on forward or
+ * Support for motif filtering is limit to CpG sites. Without this filtering
+   enabled all reference positions that are the canonical base (on forward or
    reverse strand) equivalent to the modified base under consideration are
-   reported; there's no support for filtering by biologically interesting
-   motifs.
+   reported.
  * No option to combine per-strand counts into a total count (how to do this
    generically depends on motif).
  * Insertion columns are completely ignored for simplicitely (and avoid

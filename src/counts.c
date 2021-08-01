@@ -93,10 +93,11 @@ void print_pileup_data(plp_data pileup){
  *  @param extended whether to include counts of canonical, modified and filtered bases.
  *  @param feature name to use for feature column of BED (e.g. 5mC).
  *  @param canon_base canonical base to match.
+ *  @param cpg filter output to only CpG sites.
  *  @returns void
  *
  */
-void print_bedmethyl(plp_data pileup, char *ref, int rstart, bool extended, char* feature, char canon_base){
+void print_bedmethyl(plp_data pileup, char *ref, int rstart, bool extended, char* feature, char canon_base, bool cpg){
     // ecoli1  100718  100719  .       4       +       100718  100719  0,0,0   3       0
     
     // this is a bit naff, we should introspect these indices, or have them
@@ -114,19 +115,28 @@ void print_bedmethyl(plp_data pileup, char *ref, int rstart, bool extended, char
     else if (canon_base == 'G') {cif=6; cir=1; rc_canon_base = 'C';}
     else if (canon_base == 'T') {cif=7; cir=0; rc_canon_base = 'A';}
     else {fprintf(stderr, "Unrecognised canonical base: '%c'\n", canon_base); exit(1);}
+    if (canon_base != 'C' && cpg) {
+        fprintf(stderr, "CpG filtering cannot be used when canonical base is not 'C'.\n");
+        exit(1);
+    }
+
+    int rlen = strlen(ref);
 
     for (size_t i = 0; i < pileup->n_cols; ++i) {
         size_t pos = pileup->major[i];
-        // check if this is a position we care about, this could be better by passing
-        // in list of relevant contexts:
-        //     eg. cCagg, ccaGg, cCtgg, cCtgg
-        // where the upper case base corresponds to pos
-        char rbase = ref[pos - rstart];
+        size_t rpos = pos - rstart;
+        char rbase = ref[rpos];
         if (rbase == canon_base){
+            if (cpg && rpos < rlen - 1  && ref[rpos + 1] != 'G') {
+                continue;
+            }
             isrev = 0; mi = fwd_mod; fi = fwd_filt; ci = cif;
             bases = fwdbases;
         } else if (rbase == rc_canon_base) {
-            // G on rev strand is C in reads
+            // e.g. G on rev strand is C in reads
+            if (cpg && rpos != 0 && ref[rpos - 1] != 'C') {
+                continue;
+            }
             isrev = 1; mi = rev_mod; fi = rev_filt; ci = cir;
             bases = revbases;
         }
@@ -356,7 +366,9 @@ void process_region_threads(arguments_t args, const char *chr, int start, int en
             if ((r = hts_tpool_next_result(q))) {
                 plp_data res = (plp_data)hts_tpool_result_data(r);
                 if (res != NULL) {
-                    print_bedmethyl(res, ref, start, args.extended, args.mod_base.abbrev, args.mod_base.base);
+                    print_bedmethyl(
+                        res, ref, 0,
+                        args.extended, args.mod_base.abbrev, args.mod_base.base, args.cpg);
                     destroy_plp_data(res);
                     done++;
                     fprintf(stderr, "\r%.1f %%", 100*done/nregs);
@@ -371,7 +383,9 @@ void process_region_threads(arguments_t args, const char *chr, int start, int en
     while ((r = hts_tpool_next_result(q))) {
         plp_data res = (plp_data)hts_tpool_result_data(r);
         if (res != NULL) {
-            print_bedmethyl(res, ref, start, args.extended, args.mod_base.abbrev, args.mod_base.base);
+            print_bedmethyl(
+                res, ref, 0,
+                args.extended, args.mod_base.abbrev, args.mod_base.base, args.cpg);
             destroy_plp_data(res);
             done++;
             fprintf(stderr, "\r%.1f %%", 100*done/nregs);
@@ -392,7 +406,7 @@ void process_region(arguments_t args, const char *chr, int start, int end, char 
         args.bam, chr, start, end,
         args.read_group, args.lowthreshold, args.highthreshold, args.mod_base.code);
     if (pileup == NULL) return;
-    print_bedmethyl(pileup, ref, start, args.extended, args.mod_base.abbrev, args.mod_base.base);
+    print_bedmethyl(pileup, ref, start, args.extended, args.mod_base.abbrev, args.mod_base.base, args.cpg);
     destroy_plp_data(pileup);
 }
 
@@ -427,22 +441,23 @@ int main(int argc, char *argv[]) {
         exit(0);
     } else {
         // process given region
-        int len;
-        char *ref = fai_fetch(fai, args.region, &len);
-        if (len < 0) {
-            exit(1);
-        }
+        // simplify things for later (motif matching) on by fetching whole chr
         int start, end;
         char *chr = xalloc(strlen(args.region) + 1, sizeof(char), "chr");
         strcpy(chr, args.region);
         char *reg_chr = (char *) hts_parse_reg(chr, &start, &end);
-        end = min(end, len);
         // start and end now zero-based end exclusive
         if (reg_chr) {
             *reg_chr = '\0';  // sets chr to be terminated at correct point
         } else {
             fprintf(stderr, "Failed to parse region: '%s'.\n", args.region);
         }
+        int len;
+        char *ref = fai_fetch(fai, chr, &len);
+        if (len < 0) {
+            exit(1);
+        }
+        end = min(end, len);
         process_region_threads(args, chr, start, end, ref);
 
         free(chr);

@@ -31,6 +31,7 @@ typedef struct arguments {
     char* region;
     char* read_group;
     mod_base mod_base;
+    bool cpg;
     bool extended;
     int threads;
     int lowthreshold;

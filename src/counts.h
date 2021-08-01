@@ -72,10 +72,11 @@ void print_pileup_data(plp_data pileup);
  *  @param extended whether to include counts of canonical, modified and filtered bases.
  *  @param feature name to use for feature column of BED (e.g. 5mC).
  *  @param canon_base canonical base to match.
+ *  @param cpg filter output to only CpG sites.
  *  @returns void
  *
  */
-void print_bedmethyl(plp_data pileup, char *ref, int rstart, bool extended, char* feature, char canon_base);
+void print_bedmethyl(plp_data pileup, char *ref, int rstart, bool extended, char* feature, char canon_base, bool cpg);
 
 
 /** Generates base counts from a region of a bam.

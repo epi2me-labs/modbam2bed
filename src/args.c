@@ -23,6 +23,8 @@ static struct argp_option options[] = {
         "Bases with mod. probability > MOD_THRESHOLD are counted as modified."},
     {"mod_base", 'm', "MODIFIED_BASE", 0,
         "Modified base of interest, one of: 5mC, 5hmC, 5fC, 5caC, 5hmU, 5fU, 5caU, 6mA, 5oxoG, Xao."},
+    {"cpg", 'c', 0, 0,
+        "Output records filtered to CpG sited."},
     {"region", 'r', "chr:start-end", 0,
         "Genomic region to process."},
     {"read_group", 'g', "READ_GROUP", 0,
@@ -38,6 +40,7 @@ static struct argp_option options[] = {
 static error_t parse_opt (int key, char *arg, struct argp_state *state) {
     arguments_t *arguments = state->input;
     float thresh;
+    bool found = false;
     switch (key) {
         case 'a':
             thresh = atof(arg);
@@ -55,15 +58,21 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state) {
             break;
         case 'm':
             for (size_t i = 0; i < n_mod_bases; ++i) {
-                fprintf(stderr, "%s\n", mod_bases[i].abbrev);
                 if (!strcmp(mod_bases[i].abbrev, arg)) {
                     arguments->mod_base = mod_bases[i];
+                    found = true;
                     break;
                 }
+            }
+            if (!found) {
+                argp_error (state, "Unrecognised modified base type: '%s'.", arg);
             }
             break;
         case 'r':
             arguments->region = arg;
+            break;
+        case 'c':
+            arguments->cpg = true;
             break;
         case 'e':
             arguments->extended = true;
@@ -110,8 +119,16 @@ arguments_t parse_arguments(int argc, char** argv) {
     args.ref = NULL;
     args.region = NULL;
     args.read_group = NULL;
+    args.cpg = false;
     args.extended = false;
     args.threads = 1;
     argp_parse(&argp, argc, argv, 0, 0, &args);
+    // allow CpG only for C!
+    if(args.cpg) {
+        if (args.mod_base.base != 'C') {
+            fprintf(stderr, "Option '--cpg' can only be used with cytosine modifications.");
+            exit(1);
+        }; 
+    }
     return args;
 }
