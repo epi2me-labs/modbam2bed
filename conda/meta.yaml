@@ -1,0 +1,51 @@
+package:
+    name: {{ environ.get('CONDA_PKG') }}
+    version: {{ environ.get('CONDA_PKG_VERSION') }}
+
+source:
+    path: ../
+
+build:
+    number: {{ environ.get('CONDA_PKG_BUILD', 0) }}
+
+requirements:
+    build:
+        - {{ compiler('c') }}
+    host:
+        - autoconf
+        - make
+        - binutils
+        - libcurl
+        - bzip2
+        - xz
+        - zlib
+        - libdeflate
+        - openssl  # [not osx]
+    run:
+        - libcurl
+        - bzip2
+        - xz
+        - zlib
+        - libdeflate
+        - openssl  # [not osx]
+
+test:
+    commands:
+        # taken from bioconda htslib build
+        - "otool -L $PREFIX/bin/modbam2bed | grep deflate"  # [osx]
+        - "ldd $PREFIX/bin/modbam2bed | grep deflate"  # [not osx]
+        - modbam2bed --help
+
+about:
+    home: "https://github.com/epi2me-labs/modbam2bed"
+    license: Mozilla Public License 2.0 
+    license_family: OTHER
+    license_file: LICENSE
+    summary: "Summarise BAM files containing modified-base information to bedMethyl format."
+    doc_url: https://github.com/epi2me-labs/modbam2bed
+    dev_url: https://github.com/epi2me-labs/modbam2bed
+
+extra:
+    recipe-maintainers:
+        - cjw85
+
