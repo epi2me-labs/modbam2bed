@@ -30,6 +30,8 @@ typedef struct arguments {
     char *ref;
     char* region;
     char* read_group;
+    char tag_name[2];
+    int tag_value;
     mod_base mod_base;
     bool cpg;
     bool extended;

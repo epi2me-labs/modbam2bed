@@ -17,26 +17,41 @@ static char doc[] =
  as being modified.";
 static char args_doc[] = " <reads.bam> <reference.fasta> > ";
 static struct argp_option options[] = {
-    {"canon_threshold", 'a', "CANON_THRESHOLD", 0,
-        "Bases with mod. probability < CANON_THRESHOLD are counted as canonical."},
-    {"mod_threshold", 'b', "MOD_THRESHOLD", 0,
-        "Bases with mod. probability > MOD_THRESHOLD are counted as modified."},
-    {"mod_base", 'm', "MODIFIED_BASE", 0,
-        "Modified base of interest, one of: 5mC, 5hmC, 5fC, 5caC, 5hmU, 5fU, 5caU, 6mA, 5oxoG, Xao."},
-    {"cpg", 'c', 0, 0,
-        "Output records filtered to CpG sited."},
+    {0, 0, 0, 0,
+        "General options:"},
     {"region", 'r', "chr:start-end", 0,
         "Genomic region to process."},
-    {"read_group", 'g', "READ_GROUP", 0,
-        "Only process reads from given read group."},
     {"extended", 'e', 0, 0,
         "Output extended bedMethyl including counts of canonical, modified, and filtered bases (in that order)."},
+    {"mod_base", 'm', "BASE", 0,
+        "Modified base of interest, one of: 5mC, 5hmC, 5fC, 5caC, 5hmU, 5fU, 5caU, 6mA, 5oxoG, Xao."},
     {"threads", 't', "THREADS", 0,
         "Number of threads for BAM processing."},
+    {0, 0, 0, 0,
+        "Base filtering options:"},
+    {"canon_threshold", 'a', "THRESHOLD", 0,
+        "Bases with mod. probability < THRESHOLD are counted as canonical.", 2},
+    {"mod_threshold", 'b', "THRESHOLD", 0,
+        "Bases with mod. probability > THRESHOLD are counted as modified.", 2},
+    {"cpg", 'c', 0, 0,
+        "Output records filtered to CpG sited.", 2},
+    {0, 0, 0, 0,
+        "Read filtering options:"},
+    {"read_group", 'g', "RG", 0,
+        "Only process reads from given read group.", 3},
+    {"tag_name", 0x100, "TN", 0,
+        "Only process reads with a given tag (see --tag_value).", 3},
+    {"tag_value", 0x200, "VAL", 0,
+        "Only process reads with a given tag value.", 3},
+    {"haplotype", 0x300, "VAL", 0,
+        "Only process reads from a given haplotype. Equivalent to --tag_name HP --tag_value VAL.", 3},
     { 0 }
 };
 
 
+static int tag_items = 0;
+static bool tag_given = false;
+static bool hp_given = false;
 static error_t parse_opt (int key, char *arg, struct argp_state *state) {
     arguments_t *arguments = state->input;
     float thresh;
@@ -80,6 +95,25 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state) {
         case 'g':
             arguments->read_group = arg;
             break;
+        case 0x100:
+            if (strlen(arg) > 2) {
+                argp_error(state, "Tag name should be a two-letter code, received: '%s'.", arg);
+            }
+            memcpy(arguments->tag_name, arg, 2 *sizeof(char));
+            tag_items += 1;
+            tag_given = true;
+            break;
+        case 0x200:
+            arguments->tag_value = atoi(arg);
+            tag_items += 1;
+            tag_given = true;
+            break;
+        case 0x300:
+            memcpy(arguments->tag_name, "HP", 2 * sizeof(char));
+            arguments->tag_value = atoi(arg);
+            tag_items += 2;
+            hp_given = true;
+            break;
         case 't':
             arguments->threads = atoi(arg);
             break;
@@ -119,6 +153,8 @@ arguments_t parse_arguments(int argc, char** argv) {
     args.ref = NULL;
     args.region = NULL;
     args.read_group = NULL;
+    args.tag_name[0] = '\0';
+    args.tag_value = -1;
     args.cpg = false;
     args.extended = false;
     args.threads = 1;
@@ -129,6 +165,14 @@ arguments_t parse_arguments(int argc, char** argv) {
             fprintf(stderr, "Option '--cpg' can only be used with cytosine modifications.");
             exit(1);
         }; 
+    }
+    if (tag_items % 2 > 0) {
+        fprintf(stderr, "Both or neither of --tag_name and --tag_value must be given.\n");
+        exit(1);
+    }
+    if (tag_given && hp_given) {
+        fprintf(stderr, "If --haplotype is given neither of --tag_name or --tag_value should be provided.\n");
+        exit(1);
     }
     return args;
 }

@@ -198,6 +198,9 @@ int pileup_cd_destroy(void *data, const bam1_t *b, bam_pileup_cd *cd) {
  *  @param chr bam target name.
  *  @param start start position of chr to consider.
  *  @param end end position of chr to consider.
+ *  @param read_group by which to filter alignments.
+ *  @param tag_name by which to filter alignments.
+ *  @param tag_value associated with tag_name
  *  @param lowthreshold highest probability to call base as canonical.
  *  @param highthreshold lowest probablity to call base as modified.
  *  @param mod_base BAM code for modified base to report. (e.g. h for 5hmC).
@@ -208,7 +211,8 @@ int pileup_cd_destroy(void *data, const bam1_t *b, bam_pileup_cd *cd) {
  */
 plp_data calculate_pileup(
         const char *bam_file, const char *chr, int start, int end,
-        const char *read_group, int lowthreshold, int highthreshold, char mod_base) {
+        const char *read_group, const char tag_name[2], const int tag_value,
+        int lowthreshold, int highthreshold, char mod_base) {
 
     // open bam etc.
     htsFile *fp = hts_open(bam_file, "rb");
@@ -239,6 +243,7 @@ plp_data calculate_pileup(
     mplp_data *data = xalloc(1, sizeof(mplp_data), "pileup init data");
     data->fp = fp; data->hdr = hdr;
     data->iter = bam_itr_queryi(idx, mytid, start, end);
+    memcpy(data->tag_name, tag_name, 2); data->tag_value = tag_value;
     data->min_mapQ = 1; data->read_group = read_group;
 
     bam_mplp_t mplp = bam_mplp_init(1, read_bam, (void **)& data);
@@ -341,7 +346,8 @@ void *pileup_worker(void *arg) {
     twarg j = *(twarg *)arg;
     plp_data pileup = calculate_pileup(
         j.args.bam, j.chr, j.start, j.end,
-        j.args.read_group, j.args.lowthreshold, j.args.highthreshold, j.args.mod_base.code);
+        j.args.read_group, j.args.tag_name, j.args.tag_value,
+        j.args.lowthreshold, j.args.highthreshold, j.args.mod_base.code);
     free(arg);
     return pileup;
 }
@@ -404,7 +410,8 @@ void process_region_threads(arguments_t args, const char *chr, int start, int en
 void process_region(arguments_t args, const char *chr, int start, int end, char *ref) {
     plp_data pileup = calculate_pileup(
         args.bam, chr, start, end,
-        args.read_group, args.lowthreshold, args.highthreshold, args.mod_base.code);
+        args.read_group, args.tag_name, args.tag_value,
+        args.lowthreshold, args.highthreshold, args.mod_base.code);
     if (pileup == NULL) return;
     print_bedmethyl(pileup, ref, start, args.extended, args.mod_base.abbrev, args.mod_base.base, args.cpg);
     destroy_plp_data(pileup);

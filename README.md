@@ -26,23 +26,33 @@ sequence used for alignment.
 
 ```
 Usage: modbam2bed [OPTION...]  <reads.bam> <reference.fasta> >
-modbambed -- summarise a BAM with modified base tags to bedMethyl.
+modbam2bed -- summarise a BAM with modified base tags to bedMethyl.
 
-  -a, --canon_threshold=CANON_THRESHOLD
-                             Bases with mod. probability < CANON_THRESHOLD are
-                             counted as canonical.
-  -b, --mod_threshold=MOD_THRESHOLD
-                             Bases with mod. probability > MOD_THRESHOLD are
-                             counted as modified.
-  -c, --cpg                  Output records filtered to CpG sited.
+ General options:
   -e, --extended             Output extended bedMethyl including counts of
                              canonical, modified, and filtered bases (in that
                              order).
-  -g, --read_group=READ_GROUP   Only process reads from given read group.
-  -m, --mod_base=MODIFIED_BASE   Modified base of interest, one of: 5mC, 5hmC,
-                             5fC, 5caC, 5hmU, 5fU, 5caU, 6mA, 5oxoG, Xao.
-  -t, --threads=THREADS      Number of threads for BAM processing.
+  -m, --mod_base=BASE        Modified base of interest, one of: 5mC, 5hmC, 5fC,
+                             5caC, 5hmU, 5fU, 5caU, 6mA, 5oxoG, Xao.
   -r, --region=chr:start-end Genomic region to process.
+  -t, --threads=THREADS      Number of threads for BAM processing.
+
+ Base filtering options:
+  -a, --canon_threshold=THRESHOLD
+                             Bases with mod. probability < THRESHOLD are
+                             counted as canonical.
+  -b, --mod_threshold=THRESHOLD   Bases with mod. probability > THRESHOLD are
+                             counted as modified.
+  -c, --cpg                  Output records filtered to CpG sited.
+
+ Read filtering options:
+  -g, --read_group=RG        Only process reads from given read group.
+      --haplotype=VAL        Only process reads from a given haplotype.
+                             Equivalent to --tag_name HP --tag_value VAL.
+      --tag_name=TN          Only process reads with a given tag (see
+                             --tag_value).
+      --tag_value=VAL        Only process reads with a given tag value.
+
   -?, --help                 Give this help list
       --usage                Give a short usage message
   -V, --version              Print program version
@@ -54,7 +64,7 @@ Positions absent from the methylation tags are assumed to be canonical.
 Positions with modified probability between upper and lower thresholds are
 removed from the counting process. Column 5 ("score") of the output is
 calculated as the proportion of bases called as the canonical or modified
-reference dase with respect to the number of spanning reads, scaled to a
+reference base with respect to the number of spanning reads, scaled to a
 maximum of 1000. Column 11 is the percentage of reference base calls identified
 as being modified.
 
@@ -63,7 +73,7 @@ Report bugs to chris.wright@nanoporetech.com.
 
 ### Method
 
-The htlib pileup API is used to create a matrix of per-strand base counts
+The htslib pileup API is used to create a matrix of per-strand base counts
 including modified bases and deletions. Inserted bases are not counted. Bases
 of an abiguous nature, as defined by the two threshold probabilities are
 masked and used (along with substitutions and deletions) in the definition
