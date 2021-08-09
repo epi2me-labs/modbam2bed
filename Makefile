@@ -1,12 +1,12 @@
 OS := $(shell uname)
 ifeq ($(OS), Darwin)
-    SEDI=sed -i '.bak'
+	SEDI=sed -i '.bak'
 	# mainly for dev builds using homebrew things
-    export LIBRARY_PATH=/usr/local/Cellar/openssl@1.1/1.1.1k/lib
-    ARGP ?= /usr/local/Cellar/argp-standalone/1.3/lib/libargp.a
+	export LIBRARY_PATH=/usr/local/Cellar/openssl@1.1/1.1.1k/lib
+	ARGP ?= /usr/local/Cellar/argp-standalone/1.3/lib/libargp.a
 else
-    SEDI=sed -i
-    ARGP ?=
+	SEDI=sed -i
+	ARGP ?=
 endif
 
 CC ?= gcc

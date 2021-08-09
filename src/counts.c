@@ -114,9 +114,9 @@ void print_bedmethyl(plp_data pileup, char *ref, int rstart, bool extended, char
     else if (canon_base == 'C') {cif=5; cir=2; rc_canon_base = 'G';}
     else if (canon_base == 'G') {cif=6; cir=1; rc_canon_base = 'C';}
     else if (canon_base == 'T') {cif=7; cir=0; rc_canon_base = 'A';}
-    else {fprintf(stderr, "Unrecognised canonical base: '%c'\n", canon_base); exit(1);}
+    else {fprintf(stderr, "ERROR: Unrecognised canonical base: '%c'\n", canon_base); exit(1);}
     if (canon_base != 'C' && cpg) {
-        fprintf(stderr, "CpG filtering cannot be used when canonical base is not 'C'.\n");
+        fprintf(stderr, "ERROR: CpG filtering cannot be used when canonical base is not 'C'.\n");
         exit(1);
     }
 
@@ -220,7 +220,7 @@ plp_data calculate_pileup(
     sam_hdr_t *hdr = sam_hdr_read(fp);
     if (hdr == 0 || idx == 0 || fp == 0) {
         hts_close(fp); hts_idx_destroy(idx); sam_hdr_destroy(hdr);
-        fprintf(stderr, "Failed to read .bam file '%s'.", bam_file);
+        fprintf(stderr, "Failed to read .bam file '%s'.\n", bam_file);
         return NULL;
     }
 
@@ -234,7 +234,7 @@ plp_data calculate_pileup(
     }
     if (mytid == -1) {
         hts_close(fp); hts_idx_destroy(idx); sam_hdr_destroy(hdr);
-        fprintf(stderr, "Failed to find reference sequence '%s' in bam '%s'.", chr, bam_file);
+        fprintf(stderr, "Failed to find reference sequence '%s' in bam '%s'.\n", chr, bam_file);
         return NULL;
 
     }
@@ -421,10 +421,6 @@ void process_region(arguments_t args, const char *chr, int start, int end, char 
 // Run program
 int main(int argc, char *argv[]) {
     arguments_t args = parse_arguments(argc, argv);
-    if (args.highthreshold < args.lowthreshold) {
-        fprintf(stderr, "ERROR: --highthreshold must be larger than --lowthreshold\n");
-        exit(1);
-    }
     fprintf(
         stderr, "Analysing: %s (%s, %c>%c)\n",
         args.mod_base.name, args.mod_base.abbrev, args.mod_base.base, args.mod_base.code);
@@ -445,10 +441,8 @@ int main(int argc, char *argv[]) {
             free((void*) chr);
             free(ref);
         }
-        exit(0);
     } else {
         // process given region
-        // simplify things for later (motif matching) on by fetching whole chr
         int start, end;
         char *chr = xalloc(strlen(args.region) + 1, sizeof(char), "chr");
         strcpy(chr, args.region);
@@ -457,8 +451,10 @@ int main(int argc, char *argv[]) {
         if (reg_chr) {
             *reg_chr = '\0';  // sets chr to be terminated at correct point
         } else {
-            fprintf(stderr, "Failed to parse region: '%s'.\n", args.region);
+            fprintf(stderr, "ERROR: Failed to parse region: '%s'.\n", args.region);
+            exit(1);
         }
+        // simplify things for later (motif matching) on by fetching whole chr
         int len;
         char *ref = fai_fetch(fai, chr, &len);
         if (len < 0) {

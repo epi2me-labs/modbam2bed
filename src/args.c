@@ -1,7 +1,11 @@
+#include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
 #include <argp.h>
 
+#include "htslib/sam.h"
+#include "htslib/faidx.h"
 #include "args.h"
 
 const char *argp_program_version = "0.1.0";
@@ -48,6 +52,10 @@ static struct argp_option options[] = {
     { 0 }
 };
 
+bool file_exists(char* filename) {
+    struct stat st;
+    return (stat(filename, &st) == 0);
+}
 
 static int tag_items = 0;
 static bool tag_given = false;
@@ -124,9 +132,27 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state) {
             switch (state->arg_num) {
                 case 0:
                     arguments->bam = arg;
+                    if (!file_exists(arg)) {
+                        argp_error(state, "Cannot access BAM input file: '%s'.", arg);
+                    }
+                    htsFile *fp = hts_open(arg, "rb");
+                    hts_idx_t *idx = sam_index_load(fp, arg);
+                    sam_hdr_t *hdr = sam_hdr_read(fp);
+                    if (hdr == 0 || idx == 0 || fp == 0) {
+                        argp_error(state, "Failed to read .bam file '%s'.", arg);
+                    }
+                    hts_close(fp); hts_idx_destroy(idx); sam_hdr_destroy(hdr);
                     break;
                 case 1:
                     arguments->ref = arg;
+                    if (!file_exists(arg)) {
+                        argp_error(state, "Cannot access reference input file: '%s'.", arg);
+                    }
+                    faidx_t *fai = fai_load(arg);
+                    if (fai == NULL) {
+                        argp_error(state, "Cannot read .fasta(.gz) file: '%s'.", arg);
+                    }
+                    fai_destroy(fai);
                     break;
                 default:
                     argp_usage (state);
@@ -162,16 +188,20 @@ arguments_t parse_arguments(int argc, char** argv) {
     // allow CpG only for C!
     if(args.cpg) {
         if (args.mod_base.base != 'C') {
-            fprintf(stderr, "Option '--cpg' can only be used with cytosine modifications.");
+            fprintf(stderr, "ERROR: Option '--cpg' can only be used with cytosine modifications.");
             exit(1);
         }; 
     }
     if (tag_items % 2 > 0) {
-        fprintf(stderr, "Both or neither of --tag_name and --tag_value must be given.\n");
+        fprintf(stderr, "ERROR: Both or neither of --tag_name and --tag_value must be given.\n");
         exit(1);
     }
     if (tag_given && hp_given) {
-        fprintf(stderr, "If --haplotype is given neither of --tag_name or --tag_value should be provided.\n");
+        fprintf(stderr, "ERROR: If --haplotype is given neither of --tag_name or --tag_value should be provided.\n");
+        exit(1);
+    }
+    if (args.highthreshold < args.lowthreshold) {
+        fprintf(stderr, "ERROR: --highthreshold must be larger than --lowthreshold\n");
         exit(1);
     }
     return args;
