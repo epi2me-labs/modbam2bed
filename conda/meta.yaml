@@ -13,8 +13,9 @@ requirements:
         - {{ compiler('c') }}
     host:
         - autoconf
+        - argp-standalone # [osx]
         - make
-        - binutils
+        - binutils # [not osx]
         - libcurl
         - bzip2
         - xz
@@ -48,4 +49,3 @@ about:
 extra:
     recipe-maintainers:
         - cjw85
-

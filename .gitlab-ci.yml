@@ -61,9 +61,16 @@ deploy-checks:
         - if: '$CI_COMMIT_TAG =~ /^v[[:digit:]]+\.[[:digit:]]+\.[[:digit:]]+$/'
 
 conda:
-    extends: .deploy-conda
+    extends: .deploy-conda-linux
     before_script:
         - *prep-image
+        - export CONDA_PKG=${CI_PROJECT_NAME}
+        - export CONDA_PKG_VERSION=${CI_COMMIT_TAG/v/}
+        - cd conda
+
+conda-mac:
+    extends: .deploy-conda-mac
+    before_script:
         - export CONDA_PKG=${CI_PROJECT_NAME}
         - export CONDA_PKG_VERSION=${CI_COMMIT_TAG/v/}
         - cd conda

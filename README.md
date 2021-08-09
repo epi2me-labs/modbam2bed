@@ -1,7 +1,7 @@
 Modified-base BAM to bedMethyl
 ------------------------------
 
-Simple demonstration program of aggregating modified base counts stored in a
+Simple program to aggregate modified base counts stored in a
 [modified-base BAM](https://circle-production-customer-artifacts.s3.amazonaws.com/picard/548f4caff7d0cea1406e35e3/60e6b57a449db620ab0ea9b7-0-build/artifacts/pdfs/SAMtags.pdf?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Date=20210725T133456Z&X-Amz-SignedHeaders=host&X-Amz-Expires=60&X-Amz-Credential=AKIAJR3Q6CR467H7Z55A%2F20210725%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Signature=0590263dd0113d97f83c533f1e3633cdba6a9652a8a9f457d6a0eb0d188037ef) (Section 2.1) file to 
 a [bedMethyl](https://www.encodeproject.org/data-standards/wgbs/) file.
 
@@ -10,7 +10,13 @@ The code uses the `methylation` branch of htslib from
 
 ### Installation
 
-Clone the repository and then use make:
+The program is available from our conda channel, so can be installed with:
+
+    mamba create -n modbam2bed -c conda-forge -c epi2melabs modbam2bed
+
+Packages are available for bothe Linux and MacOS.
+
+Alternatively to install from the source code, clone the repository and then use make:
 
     git clone --recursive <repository>
     make modbam2bed

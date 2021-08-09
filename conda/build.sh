@@ -6,6 +6,14 @@ export HTS_CONF_ARGS="--prefix=${PREFIX} --enable-libcurl --with-libdeflate --en
 export EXTRA_CFLAGS="-I$PREFIX/include"
 export EXTRA_LDFLAGS="-L$PREFIX/lib"
 export EXTRA_LIBS="-ldl -ldeflate"
+
+OS=$(uname)
+if [[ "$OS" == "Darwin" ]]; then
+    echo "Setting Darwin args"
+    export ARGP=${PREFIX}/lib/libargp.a
+    export EXTRA_CFLAGS="${EXTRA_CFLAGS} -isysroot ${CONDA_BUILD_SYSROOT} -mmacosx-version-min=${MACOSX_DEPLOYMENT_TARGET}"
+fi
+
 make clean $NAME
 
 mkdir -p $PREFIX/bin

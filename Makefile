@@ -1,12 +1,8 @@
 OS := $(shell uname)
 ifeq ($(OS), Darwin)
-	SEDI=sed -i '.bak'
 	# mainly for dev builds using homebrew things
-	export LIBRARY_PATH=/usr/local/Cellar/openssl@1.1/1.1.1k/lib
-	ARGP ?= /usr/local/Cellar/argp-standalone/1.3/lib/libargp.a
-else
-	SEDI=sed -i
-	ARGP ?=
+    EXTRA_LDFLAGS ?= -L/usr/local/Cellar/openssl@1.1/1.1.1k/lib
+    ARGP ?= /usr/local/Cellar/argp-standalone/1.3/lib/libargp.a
 endif
 
 CC ?= gcc
@@ -26,7 +22,7 @@ htslib/libhts.a:
 	cd htslib/ \
 		&& autoheader \
 		&& autoconf \
-		&& CFLAGS="$(CFLAGS)" ./configure $(HTS_CONF_ARGS) \
+		&& CFLAGS="$(CFLAGS) $(EXTRA_CFLAGS)" ./configure $(HTS_CONF_ARGS) \
 		&& make -j 4
 
 
