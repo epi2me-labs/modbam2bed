@@ -12,7 +12,6 @@
 #include <unistd.h>
 #include "htslib/sam.h"
 #include "htslib/faidx.h"
-//#include "threadpool.h"
 #include "htslib/thread_pool.h"
 
 #include "bamiter.h"
@@ -214,37 +213,10 @@ plp_data calculate_pileup(
         const char *read_group, const char tag_name[2], const int tag_value,
         int lowthreshold, int highthreshold, char mod_base) {
 
-    // open bam etc.
-    htsFile *fp = hts_open(bam_file, "rb");
-    hts_idx_t *idx = sam_index_load(fp, bam_file);
-    sam_hdr_t *hdr = sam_hdr_read(fp);
-    if (hdr == 0 || idx == 0 || fp == 0) {
-        hts_close(fp); hts_idx_destroy(idx); sam_hdr_destroy(hdr);
-        fprintf(stderr, "Failed to read .bam file '%s'.\n", bam_file);
-        return NULL;
-    }
-
-    // find the target index for query below
-    int mytid = -1;
-    for (int i=0; i < hdr->n_targets; ++i) {
-        if(!strcmp(hdr->target_name[i], chr)) {
-            mytid = i;
-            break;
-        }
-    }
-    if (mytid == -1) {
-        hts_close(fp); hts_idx_destroy(idx); sam_hdr_destroy(hdr);
-        fprintf(stderr, "Failed to find reference sequence '%s' in bam '%s'.\n", chr, bam_file);
-        return NULL;
-
-    }
-
-    // setup bam interator
-    mplp_data *data = xalloc(1, sizeof(mplp_data), "pileup init data");
-    data->fp = fp; data->hdr = hdr;
-    data->iter = bam_itr_queryi(idx, mytid, start, end);
-    memcpy(data->tag_name, tag_name, 2); data->tag_value = tag_value;
-    data->min_mapQ = 1; data->read_group = read_group;
+    // setup bam reading
+    mplp_data *data = create_bam_iter_data(
+        bam_file, chr, start, end, read_group, tag_name, tag_value);
+    if (data == NULL) return NULL;
 
     bam_mplp_t mplp = bam_mplp_init(1, read_bam, (void **)& data);
     const bam_pileup1_t **plp = xalloc(1, sizeof(bam_pileup1_t *), "pileup");
@@ -323,13 +295,9 @@ plp_data calculate_pileup(
     }
     pileup->n_cols = n_cols;
 
-    bam_itr_destroy(data->iter);
     bam_mplp_destroy(mplp);
-    free(data);
     free(plp);
-    hts_close(fp);
-    hts_idx_destroy(idx);
-    sam_hdr_destroy(hdr);
+    destroy_bam_iter_data(data);
 
     return pileup;
 }
@@ -342,6 +310,7 @@ typedef struct twarg {
     int end;
 } twarg;
 
+
 void *pileup_worker(void *arg) {
     twarg j = *(twarg *)arg;
     plp_data pileup = calculate_pileup(
@@ -352,7 +321,16 @@ void *pileup_worker(void *arg) {
     return pileup;
 }
 
-// Process and print a single region using a threadpool
+
+/* Process and print a single region using a threadpool
+ *
+ * @param args program arguments.
+ * @param chr reference sequence to process.
+ * @param start reference coordinate to process (0-based).
+ * @param end reference coordiate to process (exclusive).
+ * @param ref reference sequence.
+ *
+ */
 void process_region_threads(arguments_t args, const char *chr, int start, int end, char *ref) {
     // create thread pool
     hts_tpool *p = hts_tpool_init(args.threads);
@@ -415,57 +393,4 @@ void process_region(arguments_t args, const char *chr, int start, int end, char 
     if (pileup == NULL) return;
     print_bedmethyl(pileup, ref, start, args.extended, args.mod_base.abbrev, args.mod_base.base, args.cpg);
     destroy_plp_data(pileup);
-}
-
-
-// Run program
-int main(int argc, char *argv[]) {
-    arguments_t args = parse_arguments(argc, argv);
-    fprintf(
-        stderr, "Analysing: %s (%s, %c>%c)\n",
-        args.mod_base.name, args.mod_base.abbrev, args.mod_base.base, args.mod_base.code);
-
-    // load ref sequence
-    faidx_t *fai = fai_load(args.ref);
-    if (fai == NULL) exit(1);
-    if (args.region == NULL) {
-        // process all regions
-        int nseq = faidx_nseq(fai);
-        for (int i = 0; i < nseq; ++i) {
-            const char *chr = faidx_iseq(fai, i);
-            int len = faidx_seq_len(fai, chr);
-            int alen;
-            char *ref = faidx_fetch_seq(fai, chr, 0, len, &alen);
-            fprintf(stderr, "Fetched %s, %i %i\n", chr, len, alen);
-            process_region_threads(args, chr, 0, len, ref);
-            free((void*) chr);
-            free(ref);
-        }
-    } else {
-        // process given region
-        int start, end;
-        char *chr = xalloc(strlen(args.region) + 1, sizeof(char), "chr");
-        strcpy(chr, args.region);
-        char *reg_chr = (char *) hts_parse_reg(chr, &start, &end);
-        // start and end now zero-based end exclusive
-        if (reg_chr) {
-            *reg_chr = '\0';  // sets chr to be terminated at correct point
-        } else {
-            fprintf(stderr, "ERROR: Failed to parse region: '%s'.\n", args.region);
-            exit(1);
-        }
-        // simplify things for later (motif matching) on by fetching whole chr
-        int len;
-        char *ref = fai_fetch(fai, chr, &len);
-        if (len < 0) {
-            exit(1);
-        }
-        end = min(end, len);
-        process_region_threads(args, chr, start, end, ref);
-
-        free(chr);
-        free(ref);
-    }
-    fai_destroy(fai);
-    exit(0);
 }

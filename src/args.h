@@ -20,7 +20,7 @@ static const mod_base mod_bases[] = {
     {"5-formyluracil", "5fU", 'T', 'e'},
     {"5-carboxyluracil", "5caU", 'T', 'b'},
     {"6-methyladenine", "6mA", 'A', 'a'},
-    {"8-Oxoguanine", "5oxoG", 'G', 'o'},
+    {"8-Oxoguanine", "8oxoG", 'G', 'o'},
     {"Xanthosine", "Xao", 'T', 'n'},
 };
 static const mod_base default_mod_base = {"5-methylcytosine", "5mC", 'C', 'm'};
