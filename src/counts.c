@@ -381,6 +381,7 @@ void process_region_threads(arguments_t args, const char *chr, int start, int en
     // clean up pool
     hts_tpool_process_destroy(q);
     hts_tpool_destroy(p);
+    fprintf(stderr, "returning\n");
 }
 
 

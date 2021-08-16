@@ -6,7 +6,7 @@ ifeq ($(OS), Darwin)
 endif
 
 CC ?= gcc
-CFLAGS ?= -fpic -msse3 -O3
+CFLAGS ?= -fpic -msse3 -O3 -std=c99
 EXTRA_CFLAGS ?=
 EXTRA_LDFLAGS ?=
 EXTRA_LIBS ?=
