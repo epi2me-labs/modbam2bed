@@ -97,7 +97,7 @@ conda-mac:
 ### Python
 
 bld:py-sdist:
-    stage: test
+    stage: prerelease
     script:
         - *minimal-python
         - make sdist
@@ -107,7 +107,7 @@ bld:py-sdist:
 
 .many-linux: &many-linux-def
   image: quay.io/pypa/manylinux2010_x86_64
-  stage: test
+  stage: prerelease
   artifacts:
       paths:
           - wheelhouse/*.whl
@@ -133,6 +133,6 @@ deploy:pypi:
         - *minimal-python
         - make pypi_build/bin/activate
         - source pypi_build/bin/activate
-        - twine upload --non-interactive dist/modbampy*.tar.gz wheelhouse/modbamby*.whl
+        - twine upload --non-interactive dist/modbampy*.tar.gz wheelhouse/modbampy*.whl
     rules:
         - if: '$CI_COMMIT_TAG =~ /^v[[:digit:]]+\.[[:digit:]]+\.[[:digit:]]+$/'
