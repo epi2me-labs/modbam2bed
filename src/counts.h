@@ -3,6 +3,8 @@
 
 #include <stdbool.h>
 
+#include "args.h"
+
 // medaka-style feature data
 typedef struct _plp_data {
     size_t buffer_cols;
@@ -101,5 +103,16 @@ plp_data calculate_pileup(
     const char *read_group, const char tag_name[2], const int tag_value,
     int lowthreshold, int highthreshold, char mod_base);
 
+
+/* Process and print a single region using a threadpool
+ *
+ * @param args program arguments.
+ * @param chr reference sequence to process.
+ * @param start reference coordinate to process (0-based).
+ * @param end reference coordiate to process (exclusive).
+ * @param ref reference sequence.
+ *
+ */
+void process_region_threads(arguments_t args, const char *chr, int start, int end, char *ref);
 
 #endif

@@ -8,6 +8,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - Updated htslib to version from samtools/dev.
 
+## [v0.2.0]
+### Fixed
+- Segmentation fault on exit caused by double free of faidx member.
+### Added
+- Python API to pileup and read-level parsing.
+
 ## [v0.1.1]
 ### Fixed
 - Check input files are present and readable rather than segfaulting.
