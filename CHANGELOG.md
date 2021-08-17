@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [unrelease]
 ### Changed
 - Updated htslib to version from samtools/dev.
+### Fixed
+- Incorrect processing of non-primary alignments in Python API.
 
 ## [v0.2.0]
 ### Fixed

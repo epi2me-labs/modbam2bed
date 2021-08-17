@@ -126,9 +126,9 @@ int read_bam(void *data, bam1_t *b) {
  *  The length of the returned array is b->core->l_qlen.
  */
 int *qpos2rpos(bam1_t *b) {
-    //uint32_t *cigar =  ((uint32_t*)((b)->data + (b)->core.l_qname))
-    //hts_pos_t qlen = bam_cigar2qlen(b->core->n_cigar, cigar);
-    uint32_t qlen = b->core.l_qseq;  // the above is more proper for e.g. hard clipped alignments
+    // we only deal in primary/soft-clipped alignments so length
+    // ok qseq member is the length of the intact query sequence.
+    uint32_t qlen = b->core.l_qseq;
     uint32_t *cigar = bam_get_cigar(b);
     int *posmap = xalloc(qlen, sizeof(uint32_t), "pos_map");
     for (size_t i = 0; i < qlen; ++i) posmap[i] = -1;  // unaligned
