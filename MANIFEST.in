@@ -5,8 +5,9 @@ include LICENSE.md
 include requirements.txt
 include build.py
 include Makefile
-graft htslib-*
-prune htslib-*/test
+graft htslib*
+prune htslib/test
+prune htslib/htscodecs/tests
 graft images
 prune build
 prune docs

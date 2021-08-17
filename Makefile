@@ -28,20 +28,21 @@ htslib/libhts.a:
 
 .PHONY: clean_htslib
 clean_htslib:
+	rm -rf htslib/autom4te.cache/ 
 	cd htslib && make clean || exit 0
 
 
-obj/%.o: src/%.c
+%.o: src/%.c
 	mkdir -p obj && \
 		$(CC) -c -pthread -Wall -fstack-protector-strong -D_FORTIFY_SOURCE=2 $(CFLAGS) \
 		-Isrc -Ihtslib $(EXTRA_CFLAGS) $^ -o $@
 
 .PHONY: clean_obj
 clean_obj:
-	rm -rf obj
+	rm -rf *.o
 
 
-modbam2bed: obj/modbam2bed.o obj/common.o obj/counts.o obj/bamiter.o obj/args.o htslib/libhts.a
+modbam2bed: modbam2bed.o common.o counts.o bamiter.o args.o htslib/libhts.a
 	$(CC) -pthread -Wall -fstack-protector-strong -D_FORTIFY_SOURCE=2 $(CFLAGS) \
 		-Isrc -Ihtslib $(EXTRA_CFLAGS) $(EXTRA_LDFLAGS)\
 		$^ $(ARGP) \
@@ -79,5 +80,28 @@ python: htslib/libhts.a pymod.a $(VENV)/bin/activate
 clean_python: clean_obj
 	rm -rf dist build modbampy.egg-info pymod.a libmodbampy.abi3.so ${VENV}
 
-pymod.a: obj/common.o obj/bamiter.o obj/counts.o obj/args.o 
+pymod.a: common.o bamiter.o counts.o args.o 
 	ar rcs $@ $^
+
+test_python: venv
+	${IN_VENV} && pip install flake8 flake8-rst-docstrings flake8-docstrings flake8-import-order
+	${IN_VENV} && flake8 modbampy \
+		--import-order-style google --application-import-names modbampy,libmodbampy \
+		--statistics
+	${IN_VENV} && modbampy test_data/400ecoli.bam ecoli1 0 4000000 | wc -l
+	${IN_VENV} && modbampy test_data/400ecoli.bam ecoli1 0 4000000 --pileup | wc -l
+
+IN_BUILD=. ./pypi_build/bin/activate
+pypi_build/bin/activate:
+	test -d pypi_build || $(PYTHON) -m venv pypi_build --prompt "(pypi) "
+	${IN_BUILD} && pip install pip --upgrade
+	${IN_BUILD} && pip install --upgrade pip setuptools twine wheel readme_renderer[md] keyrings.alt
+
+.PHONY: sdist
+sdist: pypi_build/bin/activate
+	${IN_BUILD} && python setup.py sdist
+
+
+.PHONY: wheels
+wheels: clean 
+	docker run -v `pwd`:/io quay.io/pypa/manylinux2010_x86_64 /io/build-wheels.sh /io 6 7 8

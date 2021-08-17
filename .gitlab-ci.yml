@@ -14,13 +14,18 @@ image: ${UBUNTUIMAGE}:20.04
     apt update -qq
     apt install -y --no-install-recommends gcc autoconf valgrind make curl wget zlib1g-dev libbz2-dev libreadline-dev libssl-dev libffi-dev liblzma-dev libcurl4-gnutls-dev
 
+.minimal-python: &minimal-python |
+    export DEBIAN_FRONTEND=noninteractive
+    apt-get update -qq && apt-get install -y -qq python3-all-dev python3-venv
+
+
 stages:
     - test
     - prerelease
     - release
 
-# Insist that the version in __init__.py matches the git tag
-.check-versions: &check-versions |
+# Insist that the version in src/args.c matches the git tag
+.check-C-versions: &check-C-versions |
     CVER="v"$(grep argp_program_version src/args.c | awk '{gsub("\"","",$5); gsub(";","",$5); print $5}')
     TAGVER=${CI_COMMIT_TAG}
     if [[ "${CVER}" != "${TAGVER}" ]]; then
@@ -43,7 +48,20 @@ stages:
         echo "Found CHANGELOG.md entry for tag"
     fi
 
-build:
+# Insist that the version in __init__.py matches the git tag
+.check-py-versions: &check-py-versions |
+    PYVER="v"$(grep "__version__ = " modbampy/__init__.py | awk '{gsub("\"","",$3); print $3}')
+    TAGVER=${CI_COMMIT_TAG}
+    if [[ "${PYVER}" != "${TAGVER}" ]]; then
+        echo "Mismatching TAG and PACKAGE versions:"
+        echo " -     TAG:'$PYVER'"
+        echo " - PACKAGE:'$TAGVER'"
+        exit 1
+    else
+        echo "TAG and PACKAGE versions agree: '${PYVER}'"
+    fi
+
+bld:program:
     stage: test
     before_script:
         - *prep-image
@@ -55,7 +73,8 @@ build:
 deploy-checks:
     stage: prerelease
     script:
-        - *check-versions
+        - *check-C-versions
+        - *check-py-versions
         - *check-changelog
     rules:
         - if: '$CI_COMMIT_TAG =~ /^v[[:digit:]]+\.[[:digit:]]+\.[[:digit:]]+$/'
@@ -74,3 +93,46 @@ conda-mac:
         - export CONDA_PKG=${CI_PROJECT_NAME}
         - export CONDA_PKG_VERSION=${CI_COMMIT_TAG/v/}
         - cd conda
+
+### Python
+
+bld:py-sdist:
+    stage: test
+    script:
+        - *minimal-python
+        - make sdist
+    artifacts:
+        paths:
+            - dist/*.tar.gz
+
+.many-linux: &many-linux-def
+  image: quay.io/pypa/manylinux2010_x86_64
+  stage: test
+  artifacts:
+      paths:
+          - wheelhouse/*.whl
+
+bld:py-6:
+    <<: *many-linux-def
+    script:
+        - ./build-wheels.sh . 6
+
+bld:py-7:
+    <<: *many-linux-def
+    script:
+        - ./build-wheels.sh . 7
+
+bld:py-8:
+    <<: *many-linux-def
+    script:
+        - ./build-wheels.sh . 8
+
+deploy:pypi:
+    stage: release
+    script:
+        - *minimal-python
+        - make pypi_build/bin/activate
+        - source pypi_build/bin/activate
+        - twine upload --non-interactive dist/modbampy*.tar.gz wheelhouse/modbamby*.whl
+    rules:
+        - if: '$CI_COMMIT_TAG =~ /^v[[:digit:]]+\.[[:digit:]]+\.[[:digit:]]+$/'
