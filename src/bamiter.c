@@ -43,7 +43,6 @@ mplp_data *create_bam_iter_data(
         hts_close(fp); hts_idx_destroy(idx); sam_hdr_destroy(hdr);
         fprintf(stderr, "Failed to find reference sequence '%s' in bam '%s'.\n", chr, bam_file);
         return NULL;
-
     }
 
     // setup bam interator

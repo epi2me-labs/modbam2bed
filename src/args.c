@@ -8,10 +8,10 @@
 #include "htslib/faidx.h"
 #include "args.h"
 
-const char *argp_program_version = "0.2.2";
+const char *argp_program_version = "0.3.0";
 const char *argp_program_bug_address = "chris.wright@nanoporetech.com";
 static char doc[] = 
- "modbam2bed -- summarise a BAM with modified base tags to bedMethyl.\
+ "modbam2bed -- summarise one or more BAM with modified base tags to bedMethyl.\
  \vPositions absent from the methylation tags are assumed to be canonical. \
  Positions with modified probability between upper and lower thresholds\
  are removed from the counting process. Column 5 (\"score\") of the output\
@@ -19,7 +19,7 @@ static char doc[] =
  reference base with respect to the number of spanning reads, scaled to a\
  maximum of 1000. Column 11 is the percentage of reference base calls identified\
  as being modified.";
-static char args_doc[] = " <reads.bam> <reference.fasta> > ";
+static char args_doc[] = "<reference.fasta> <reads.bam> [<reads.bam> ...]";
 static struct argp_option options[] = {
     {0, 0, 0, 0,
         "General options:"},
@@ -129,33 +129,21 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state) {
             argp_usage (state);
             break;
         case ARGP_KEY_ARG:
-            switch (state->arg_num) {
-                case 0:
-                    arguments->bam = arg;
-                    if (!file_exists(arg)) {
-                        argp_error(state, "Cannot access BAM input file: '%s'.", arg);
-                    }
-                    htsFile *fp = hts_open(arg, "rb");
-                    hts_idx_t *idx = sam_index_load(fp, arg);
-                    sam_hdr_t *hdr = sam_hdr_read(fp);
-                    if (hdr == 0 || idx == 0 || fp == 0) {
-                        argp_error(state, "Failed to read .bam file '%s'.", arg);
-                    }
-                    hts_close(fp); hts_idx_destroy(idx); sam_hdr_destroy(hdr);
-                    break;
-                case 1:
-                    arguments->ref = arg;
-                    if (!file_exists(arg)) {
-                        argp_error(state, "Cannot access reference input file: '%s'.", arg);
-                    }
-                    faidx_t *fai = fai_load(arg);
-                    if (fai == NULL) {
-                        argp_error(state, "Cannot read .fasta(.gz) file: '%s'.", arg);
-                    }
-                    fai_destroy(fai);
-                    break;
-                default:
-                    argp_usage (state);
+            if (state->arg_num == 0) {
+                arguments->ref = arg;
+                if (!file_exists(arg)) {
+                    argp_error(state, "Cannot access reference input file: '%s'.", arg);
+                }
+                faidx_t *fai = fai_load(arg);
+                if (fai == NULL) {
+                    argp_error(state, "Cannot read .fasta(.gz) file: '%s'.", arg);
+                }
+                fai_destroy(fai);
+                break;
+            } else {
+                arguments->bam = (const char**)(&state->argv[state->next - 1]);
+                state->next = state->argc;
+                break;
             }
             break;
         case ARGP_KEY_END:

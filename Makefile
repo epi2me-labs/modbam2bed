@@ -12,6 +12,8 @@ EXTRA_LDFLAGS ?=
 EXTRA_LIBS ?=
 HTS_CONF_ARGS ?=
 
+VALGRIND ?= valgrind
+
 
 .PHONY: default
 default: modbam2bed
@@ -55,8 +57,8 @@ clean: clean_obj clean_htslib
 
 .PHONY: mem_check
 mem_check: modbam2bed
-	valgrind --error-exitcode=1 --tool=memcheck --leak-check=full --show-leak-kinds=all -s \
-		./modbam2bed -b 0.66 -a 0.33 -t 2 -r ecoli1 test_data/400ecoli.bam test_data/ecoli.fasta.gz > /dev/null
+	$(VALGRIND) --error-exitcode=1 --tool=memcheck --leak-check=full --show-leak-kinds=all -s \
+		./modbam2bed -b 0.66 -a 0.33 -t 2 -r ecoli1 test_data/ecoli.fasta.gz test_data/400ecoli.bam > /dev/null
 
 
 ### Python

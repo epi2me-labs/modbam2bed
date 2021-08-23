@@ -9,7 +9,7 @@
 typedef struct _plp_data {
     size_t buffer_cols;
     size_t n_cols;
-    char* rname;
+    char *rname;
     size_t *matrix;
     size_t *major;
 } _plp_data;
@@ -45,7 +45,7 @@ static const int num2countbase[32] = {
  *  The return value can be freed with destroy_plp_data.
  *
  */
-plp_data create_plp_data(size_t buffer_cols, const char* rname);
+plp_data create_plp_data(size_t buffer_cols, const char *rname);
 
 
 /** Destroys a pileup data structure.
@@ -78,7 +78,7 @@ void print_pileup_data(plp_data pileup);
  *  @returns void
  *
  */
-void print_bedmethyl(plp_data pileup, char *ref, int rstart, bool extended, char* feature, char canon_base, bool cpg);
+void print_bedmethyl(plp_data pileup, char *ref, int rstart, bool extended, char *feature, char canon_base, bool cpg);
 
 
 /** Generates base counts from a region of a bam.
@@ -99,7 +99,7 @@ void print_bedmethyl(plp_data pileup, char *ref, int rstart, bool extended, char
  *
  */
 plp_data calculate_pileup(
-    const char *bam_file, const char *chr, int start, int end,
+    const char **bam_file, const char *chr, int start, int end,
     const char *read_group, const char tag_name[2], const int tag_value,
     int lowthreshold, int highthreshold, char mod_base);
 

@@ -3,12 +3,12 @@
 #include <ctype.h>
 #include <errno.h>
 #include <math.h>
+#include <pthread.h>
 #include <string.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdint.h>
 #include <stdlib.h>
-#include <pthread.h>
 #include <unistd.h>
 #include "htslib/sam.h"
 #include "htslib/faidx.h"
@@ -209,18 +209,23 @@ int pileup_cd_destroy(void *data, const bam1_t *b, bam_pileup_cd *cd) {
  *
  */
 plp_data calculate_pileup(
-        const char *bam_file, const char *chr, int start, int end,
+        const char **bam_file, const char *chr, int start, int end,
         const char *read_group, const char tag_name[2], const int tag_value,
         int lowthreshold, int highthreshold, char mod_base) {
 
     // setup bam reading
-    mplp_data *data = create_bam_iter_data(
-        bam_file, chr, start, end, read_group, tag_name, tag_value);
-    if (data == NULL) return NULL;
+    int nfile = 0; for (; bam_file[nfile]; nfile++);
+    mplp_data **data = xalloc(nfile, sizeof(mplp_data*), "bam files");
+    for (size_t i = 0; i < nfile; ++i) {
+        data[i] = create_bam_iter_data(
+            (const char *) bam_file[i], chr, start, end, read_group, tag_name, tag_value);
+        if (data[i] == NULL) return NULL;
+    }
 
-    bam_mplp_t mplp = bam_mplp_init(1, read_bam, (void **)& data);
-    const bam_pileup1_t **plp = xalloc(1, sizeof(bam_pileup1_t *), "pileup");
-    int ret, pos, tid, n_plp;
+    bam_mplp_t mplp = bam_mplp_init(nfile, read_bam, (void **)data);
+    int *n_plp = xalloc(nfile, sizeof(int), "bam read cover");
+    const bam_pileup1_t **plp = xalloc(nfile, sizeof(bam_pileup1_t *), "pileup");
+    int ret, pos, tid;
 
     bam_mplp_constructor(mplp, pileup_cd_create);
     bam_mplp_destructor(mplp, pileup_cd_destroy);
@@ -231,73 +236,79 @@ plp_data calculate_pileup(
     // get counts
     int n_cols = 0;  // number of processed columns (not all ref positions included)
     size_t major_col = 0;
-    while ((ret=bam_mplp_auto(mplp, &tid, &pos, &n_plp, plp) > 0)) {
-        const char *c_name = data->hdr->target_name[tid];
+    while ((ret=bam_mplp_auto(mplp, &tid, &pos, n_plp, plp) > 0)) {
+        const char *c_name = data[0]->hdr->target_name[tid];
         if (strcmp(c_name, chr) != 0) continue;
         if (pos < start) continue;
         if (pos >= end) break;
 
         pileup->major[n_cols] = pos;  // dont need insert columns for this
 
-        // loop through all reads at this position
-        for (int i = 0; i < n_plp; ++i) {
-            const bam_pileup1_t *p = plp[0] + i;
-            if (p->is_refskip) continue;
+        // go through all files, and all reads in each
+        for (size_t file = 0; file < nfile; ++file) {
+            for (int i = 0; i < n_plp[file]; ++i) {
+                const bam_pileup1_t *p = plp[file] + i;
+                if (p->is_refskip) continue;
 
-            int base_i = -1;
-            if (p->is_del) {
-                // deletions are interesting for counting depth
-                base_i = bam_is_rev(p->b) ? rev_del : fwd_del;
-            } else { // handle pos and any following ins
-                int base_j = bam1_seqi(bam1_seq(p->b), p->qpos);
-
-                // Simple mod detection
-                size_t n_mods = 256;
-                hts_base_mod_state *mod_state = p->cd.p;
-                hts_base_mod allmod[n_mods];
-                int nm = bam_mods_at_qpos(p->b, p->qpos, mod_state, allmod, n_mods);
-                if (nm < 0 ) continue;  // ignore reads which give error
-                if (nm > 0) {
-                    hts_base_mod mod;
-                    for (int k = 0; k < nm && k < n_mods; ++k) {
-                        if (allmod[k].modified_base == mod_base) {
-                            mod = allmod[k];
-                            // we found our mod
-                            //fprintf(stderr, "Modified %c to %c at %d\n",
-                            //    mod.canonical_base, mod.modified_base, pos);
-                            // make decision between mod and unmod.
-                            //float q = -10 * log10(1 - ((mod[0].qual + 0.5) / 256)) + 0.5;
-                            if (mod.qual > highthreshold) {
-                                base_i = bam_is_rev(p->b) ? rev_mod : fwd_mod;
-                            } else if (mod.qual < lowthreshold) {
-                                // canonical
-                                if bam_is_rev(p->b) base_j += 16;
-                                base_i = num2countbase[base_j];
-                            } else {
-                                // filter out
-                                base_i = bam_is_rev(p->b) ? rev_filt : fwd_filt;
-                            }
-                            break;
-                        }
-                    }
+                int base_i = -1;
+                if (p->is_del) {
+                    // deletions are interesting for counting depth
+                    base_i = bam_is_rev(p->b) ? rev_del : fwd_del;
                 } else {
-                    // no mod call - assume this means canonical
-                    if bam_is_rev(p->b) base_j += 16;
-                    base_i = num2countbase[base_j];
+                    int base_j = bam1_seqi(bam1_seq(p->b), p->qpos);
+
+                    // Simple mod detection
+                    size_t n_mods = 256;
+                    hts_base_mod_state *mod_state = p->cd.p;
+                    hts_base_mod allmod[n_mods];
+                    int nm = bam_mods_at_qpos(p->b, p->qpos, mod_state, allmod, n_mods);
+                    if (nm < 0 ) continue;  // ignore reads which give error
+                    if (nm > 0) {
+                        hts_base_mod mod;
+                        for (int k = 0; k < nm && k < n_mods; ++k) {
+                            if (allmod[k].modified_base == mod_base) {
+                                mod = allmod[k];
+                                // we found our mod
+                                //fprintf(stderr, "Modified %c to %c at %d\n",
+                                //    mod.canonical_base, mod.modified_base, pos);
+                                // make decision between mod and unmod.
+                                //float q = -10 * log10(1 - ((mod[0].qual + 0.5) / 256)) + 0.5;
+                                if (mod.qual > highthreshold) {
+                                    base_i = bam_is_rev(p->b) ? rev_mod : fwd_mod;
+                                } else if (mod.qual < lowthreshold) {
+                                    // canonical
+                                    if bam_is_rev(p->b) base_j += 16;
+                                    base_i = num2countbase[base_j];
+                                } else {
+                                    // filter out
+                                    base_i = bam_is_rev(p->b) ? rev_filt : fwd_filt;
+                                }
+                                break;
+                            }
+                        }
+                    } else {
+                        // no mod call - assume this means canonical
+                        if bam_is_rev(p->b) base_j += 16;
+                        base_i = num2countbase[base_j];
+                    }
                 }
-            }
-            if (base_i != -1) {  // not an ambiguity code
-                pileup->matrix[major_col + base_i] += 1;
-            }
+                if (base_i != -1) {  // not an ambiguity code
+                    pileup->matrix[major_col + base_i] += 1;
+                } // read loop
+            } // file loop
         }
         major_col += featlen;
         n_cols++;
     }
     pileup->n_cols = n_cols;
 
-    bam_mplp_destroy(mplp);
     free(plp);
-    destroy_bam_iter_data(data);
+    free(n_plp);
+    bam_mplp_destroy(mplp);
+    for (size_t i = 0; i < nfile; ++i) {
+        destroy_bam_iter_data(data[i]);
+    }
+    free(data);
 
     return pileup;
 }
@@ -381,7 +392,6 @@ void process_region_threads(arguments_t args, const char *chr, int start, int en
     // clean up pool
     hts_tpool_process_destroy(q);
     hts_tpool_destroy(p);
-    fprintf(stderr, "returning\n");
 }
 
 

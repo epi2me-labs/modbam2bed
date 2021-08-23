@@ -4,6 +4,7 @@
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <sys/resource.h>
 #include "htslib/faidx.h"
 
 #include "common.h"
@@ -16,6 +17,19 @@ int main(int argc, char *argv[]) {
     fprintf(
         stderr, "Analysing: %s (%s, %c>%c)\n",
         args.mod_base.name, args.mod_base.abbrev, args.mod_base.base, args.mod_base.code);
+
+    // large basecaller runs can produce more files than a single
+    // process can open, check this ahead of time.
+    struct rlimit reslimit;
+    int nfile = 0; for (; args.bam[nfile]; nfile++);
+    if (getrlimit(RLIMIT_NOFILE, &reslimit) == 0) {
+        if (nfile * args.threads > reslimit.rlim_cur - 100) {
+            fprintf(stderr,
+                "ERROR: Too many BAM files provided (%i). Try running "
+                "samtools merge on subsets of files to produce fewer files", nfile);
+            exit(1);
+        }
+    }
 
     // load ref sequence
     faidx_t *fai = fai_load(args.ref);

@@ -26,8 +26,8 @@ static const mod_base mod_bases[] = {
 static const mod_base default_mod_base = {"5-methylcytosine", "5mC", 'C', 'm'};
 
 typedef struct arguments {
-    char *bam;
-    char *ref;
+    const char** bam;
+    char* ref;
     char* region;
     char* read_group;
     char tag_name[2];
