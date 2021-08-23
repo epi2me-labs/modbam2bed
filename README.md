@@ -1,4 +1,4 @@
-![Oxford Nanopore Technologies logo](https://github.com/epi2melabs/modbam2bed/raw/master/images/ONT_logo_590x106.png)
+![Oxford Nanopore Technologies logo](https://github.com/epi2me-labs/modbam2bed/raw/master/images/ONT_logo_590x106.png)
 
 Modified-base BAM to bedMethyl
 ------------------------------
@@ -36,8 +36,8 @@ The code requires aligned reads with the `Mm` and `Ml` tags, and the reference
 sequence used for alignment.
 
 ```
-Usage: modbam2bed [OPTION...]  <reads.bam> <reference.fasta> >
-modbam2bed -- summarise a BAM with modified base tags to bedMethyl.
+Usage: modbam2bed [OPTION...] <reference.fasta> <reads.bam> [<reads.bam> ...]
+modbam2bed -- summarise one or more BAM with modified base tags to bedMethyl.
 
  General options:
   -e, --extended             Output extended bedMethyl including counts of
