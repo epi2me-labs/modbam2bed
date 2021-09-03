@@ -6,7 +6,7 @@ import numpy as np
 
 import libmodbampy
 
-__version__ = "0.3.0"
+__version__ = "0.3.1"
 ffi = libmodbampy.ffi
 libbam = libmodbampy.lib
 
@@ -197,7 +197,12 @@ def main():
             print("\t".join(str(x) for x in row))
 
     else:
+        from collections import Counter
+        counts = Counter()
         with ModBam(args.bam, args.chrom, args.start, args.end) as bam:
             for read in bam.reads():
                 for pos_mod in read.mod_sites():
-                    print(*pos_mod)
+                    counts[pos_mod[7]] += 1
+                    #print(*pos_mod)
+        for k in sorted(counts.keys()):
+            print(k, counts[k])

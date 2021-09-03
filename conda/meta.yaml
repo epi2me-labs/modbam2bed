@@ -8,6 +8,7 @@ source:
 build:
     number: {{ environ.get('CONDA_PKG_BUILD', 0) }}
 
+# libdeflate pinning to match bioconda::pysam
 requirements:
     build:
         - {{ compiler('c') }}
@@ -20,14 +21,14 @@ requirements:
         - bzip2
         - xz
         - zlib
-        - libdeflate
+        - libdeflate >=1.7,<1.8.0a0
         - openssl  # [not osx]
     run:
         - libcurl
         - bzip2
         - xz
         - zlib
-        - libdeflate
+        - libdeflate >=1.7,<1.8.0a0
         - openssl  # [not osx]
 
 test:
