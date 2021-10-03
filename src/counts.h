@@ -113,6 +113,6 @@ plp_data calculate_pileup(
  * @param ref reference sequence.
  *
  */
-void process_region_threads(arguments_t args, const char *chr, int start, int end, char *ref);
+void process_region(arguments_t args, const char *chr, int start, int end, char *ref);
 
 #endif

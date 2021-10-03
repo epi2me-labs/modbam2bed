@@ -17,9 +17,17 @@ int main(int argc, char *argv[]) {
     fprintf(
         stderr, "Analysing: %s (%s, %c>%c)\n",
         args.mod_base.name, args.mod_base.abbrev, args.mod_base.base, args.mod_base.code);
+#ifdef NOTHREADS
+    if (args.threads != 1) {
+        fprintf(
+            stderr,
+            "--threads set to %d, but threading not supported by this build.\n", args.threads);
+    }
+#endif
 
     // large basecaller runs can produce more files than a single
     // process can open, check this ahead of time.
+#ifndef WASM
     struct rlimit reslimit;
     int nfile = 0; for (; args.bam[nfile]; nfile++);
     if (getrlimit(RLIMIT_NOFILE, &reslimit) == 0) {
@@ -27,13 +35,18 @@ int main(int argc, char *argv[]) {
             fprintf(stderr,
                 "ERROR: Too many BAM files provided (%i). Try running "
                 "samtools merge on subsets of files to produce fewer files", nfile);
-            exit(1);
+            exit(EXIT_FAILURE);
         }
     }
+#endif
 
     // load ref sequence
     faidx_t *fai = fai_load(args.ref);
-    if (fai == NULL) exit(1);
+    if (fai == NULL) {
+        fprintf(stderr,
+            "ERROR: Failed to parse reference file\n");
+        exit(EXIT_FAILURE);
+    }
     if (args.region == NULL) {
         // process all regions
         int nseq = faidx_nseq(fai);
@@ -43,7 +56,7 @@ int main(int argc, char *argv[]) {
             int alen;
             char *ref = faidx_fetch_seq(fai, chr, 0, len, &alen);
             fprintf(stderr, "Fetched %s, %i %i\n", chr, len, alen);
-            process_region_threads(args, chr, 0, len, ref);
+            process_region(args, chr, 0, len, ref);
             free(ref);
         }
     } else {
@@ -57,20 +70,21 @@ int main(int argc, char *argv[]) {
             *reg_chr = '\0';  // sets chr to be terminated at correct point
         } else {
             fprintf(stderr, "ERROR: Failed to parse region: '%s'.\n", args.region);
-            exit(1);
+            exit(EXIT_FAILURE);
         }
         // simplify things for later (motif matching) on by fetching whole chr
         int len;
         char *ref = fai_fetch(fai, chr, &len);
         if (len < 0) {
-            exit(1);
+            fprintf(stderr, "ERROR: Failed to fetch reference region: '%s'.\n", args.region);
+            exit(EXIT_FAILURE);
         }
         end = min(end, len);
-        process_region_threads(args, chr, start, end, ref);
+        process_region(args, chr, start, len, ref);
 
         free(chr);
         free(ref);
     }
     fai_destroy(fai);
-    exit(0);
+    exit(EXIT_SUCCESS);
 }

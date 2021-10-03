@@ -3,7 +3,6 @@
 #include <ctype.h>
 #include <errno.h>
 #include <math.h>
-#include <pthread.h>
 #include <string.h>
 #include <stdbool.h>
 #include <stdio.h>
@@ -342,14 +341,26 @@ void *pileup_worker(void *arg) {
  * @param ref reference sequence.
  *
  */
-void process_region_threads(arguments_t args, const char *chr, int start, int end, char *ref) {
+#ifdef NOTHREADS
+void process_region(arguments_t args, const char *chr, int start, int end, char *ref) {
+    fprintf(stderr, "Processing: %s:%d-%d\n", chr, start, end);
+    plp_data pileup = calculate_pileup(
+        args.bam, chr, start, end,
+        args.read_group, args.tag_name, args.tag_value,
+        args.lowthreshold, args.highthreshold, args.mod_base.code);
+    if (pileup == NULL) return;
+    print_bedmethyl(pileup, ref, 0, args.extended, args.mod_base.abbrev, args.mod_base.base, args.cpg);
+    destroy_plp_data(pileup);
+}
+#else
+void process_region(arguments_t args, const char *chr, int start, int end, char *ref) {
+    fprintf(stderr, "Processing: %s:%d-%d\n", chr, start, end);
     // create thread pool
     hts_tpool *p = hts_tpool_init(args.threads);
     hts_tpool_process *q = hts_tpool_process_init(p, 2 * args.threads, 0);
     hts_tpool_result *r;
     const int width = 1000000;
 
-    fprintf(stderr, "Processing: %s:%d-%d\n", chr, start, end);
     int nregs = 1 + (end - start) / width; float done = 0;
     for (int rstart = start; rstart < end; rstart += width) {
         twarg *tw_args = xalloc(1, sizeof(*tw_args), "thread worker args");  // freed in worker
@@ -393,15 +404,5 @@ void process_region_threads(arguments_t args, const char *chr, int start, int en
     hts_tpool_process_destroy(q);
     hts_tpool_destroy(p);
 }
+#endif
 
-
-// Process and print a single region
-void process_region(arguments_t args, const char *chr, int start, int end, char *ref) {
-    plp_data pileup = calculate_pileup(
-        args.bam, chr, start, end,
-        args.read_group, args.tag_name, args.tag_value,
-        args.lowthreshold, args.highthreshold, args.mod_base.code);
-    if (pileup == NULL) return;
-    print_bedmethyl(pileup, ref, start, args.extended, args.mod_base.abbrev, args.mod_base.base, args.cpg);
-    destroy_plp_data(pileup);
-}
