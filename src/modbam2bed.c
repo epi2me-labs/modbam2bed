@@ -82,7 +82,7 @@ int main(int argc, char *argv[]) {
             exit(EXIT_FAILURE);
         }
         end = min(end, len);
-        process_region(args, chr, start, len, ref);
+        process_region(args, chr, start, end, ref);
 
         free(chr);
         free(ref);
