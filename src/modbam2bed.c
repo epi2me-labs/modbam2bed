@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/resource.h>
+#include <time.h>
 #include "htslib/faidx.h"
 
 #include "common.h"
@@ -13,6 +14,7 @@
 
 
 int main(int argc, char *argv[]) {
+    clock_t begin = clock();
     arguments_t args = parse_arguments(argc, argv);
     fprintf(
         stderr, "Analysing: %s (%s, %c>%c)\n",
@@ -86,5 +88,7 @@ int main(int argc, char *argv[]) {
         free(ref);
     }
     fai_destroy(fai);
+    clock_t end = clock();
+    fprintf(stderr, "Total time: %fs\n", (double)(end - begin) / CLOCKS_PER_SEC);
     exit(EXIT_SUCCESS);
 }
