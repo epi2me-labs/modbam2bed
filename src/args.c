@@ -8,7 +8,7 @@
 #include "htslib/faidx.h"
 #include "args.h"
 
-const char *argp_program_version = "0.3.1";
+const char *argp_program_version = "0.3.2";
 const char *argp_program_bug_address = "chris.wright@nanoporetech.com";
 static char doc[] = 
  "modbam2bed -- summarise one or more BAM with modified base tags to bedMethyl.\
@@ -17,8 +17,13 @@ static char doc[] =
  are removed from the counting process. Column 5 (\"score\") of the output\
  is calculated as the proportion of bases called as the canonical or modified\
  reference base with respect to the number of spanning reads, scaled to a\
- maximum of 1000. Column 11 is the percentage of reference base calls identified\
- as being modified.";
+ maximum of 1000. Column 10 is the total read coverage including reads with:\
+ canonical base, modified base, undetermined (filtered) base, substituted\
+ base (a base other than the canonical or modified base under consideration),\
+ and deletions. Column 11 is the percentage of reference-base calls identified\
+ as being modified (as a proportion of those confidently determined as\
+ canonical or modified). Extended output (-e option) can give raw counts\
+ of canonical, modified, and undetermined bases for completeness.";
 static char args_doc[] = "<reference.fasta> <reads.bam> [<reads.bam> ...]";
 static struct argp_option options[] = {
     {0, 0, 0, 0,

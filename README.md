@@ -11,8 +11,6 @@ A Python module is also available to obtain modified base information
 from BAM files in a convenient form. It is envisaged that this will eventually
 be replaced by an implementation in [pysam](https://pysam.readthedocs.io/en/latest/index.html).
 
-The code uses the `development` branch of [htslib](https://github.com/samtools/htslib).
-
 ### Installation
 
 The program is available from our conda channel, so can be installed with:
@@ -70,6 +68,68 @@ modbam2bed -- summarise one or more BAM with modified base tags to bedMethyl.
   -V, --version              Print program version
 
 ```
+
+
+
+### Method and output format
+
+The htslib pileup API is used to create a matrix of per-strand base counts
+including modified bases and deletions. Inserted bases are not counted. Bases
+of an abiguous nature, as defined by the two threshold probabilities are
+masked and used (along with substitutions and deletions) in the definition
+of the "score" (column 5) and "coverage" (column 10) entries of the bedMethyl file.
+
+> The description of the [bedMethyl](https://www.encodeproject.org/data-standards/wgbs/)
+> format on the ENCODE project website is rather loose. The definitions below are chosen pragmatically.
+
+The table below describes precisely the entries in each column of the output BED
+file. Columns seven to nine inclusive are included for compatibility with the BED
+file specification, the values written are fixed and no meaning should be derived
+from them. Columns 5, 10, and 11 are defined in terms of counts of observed
+bases to agree with reasonable interpretations of the bedMethyl specifications:
+
+ * N<sub>canon</sub> - canonical (unmodified) base count.
+ * N<sub>mod</sub> - modified base count.
+ * N<sub>filt</sub> - count of bases where read does not contain a substitution or deletion
+   with respect to the reference, but the modification status is ambiguous: these bases
+   where filtered from the calculation of the modification frequency.
+ * N<sub>sub</sub> - count of reads with a substitution with respect to the reference.
+ * N<sub>del</sub> - count of reads with a deletion with respect to the reference.
+
+Since these interpretations may differ from other tools an extended output is
+available (enabled with the `-e` option) which includes three additional columns
+with verbatim base counts.
+
+| column | description                                                                                                                                                                                                                                                                  |
+|--------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| 1      | reference sequence name                                                                                                                                                                                                                                                      |
+| 2      | 0-based start position                                                                                                                                                                                                                                                       |
+| 3      | 0-based exclusive end position (invariably start + 1)                                                                                                                                                                                                                        |
+| 4      | Abbreviated name of modified-base examined                                                                                                                                                                                                                                   |
+| 5      | "Score" 1000 * (N<sub>mod</sub> + N<sub>canon</sub>) / (N<sub>mod</sub> + N<sub>canon</sub> + N<sub>filt</sub> + N<sub>sub</sub> + N<sub>del</sub>). The quantity reflects the extent to which the calculated modification frequency in Column 11 is confounded by the alternative calls. The denominator here is the total read coverage as given in Column 10. |
+| 6      | Strand (of reference sequence). Forward "+", or reverse "-".                                                                                                                                                                                                                 |
+| 7-9    | Ignore, included simply for compatibility.                                                                                                                                                                                                                                   |
+| 10     | Read coverage at reference position including all canonical, modified, undecided (filtered), substitutions from reference, and deletions.  N<sub>mod</sub> + N<sub>canon</sub> + N<sub>filt</sub> + N<sub>sub</sub> + N<sub>del</sub>                                        |
+| 11     | Percentage of modified bases, as a proportion of canonical and modified (excluding filtered, substitutions, and deletions).  100 \* N<sub>canon</sub> / (N<sub>mod</sub> + N<sub>canon</sub>)                                                                                       |
+| 12\*    | N<sub>canon</sub>                                                                                                                                                                                                                                                            |
+| 13\*    | N<sub>modified</sub>                                                                                                                                                                                                                                                         |
+| 14\*    | N<sub>filtered</sub> those bases with a modification probability falling between given thresholds.                                                                                                                                                                           |
+
+\* Included in extended output only.
+
+
+### Limitations
+
+The code has not been developed extensively and currently has some limitations:
+
+ * Support for motif filtering is limit to CpG sites. Without this filtering
+   enabled all reference positions that are the canonical base (on forward or
+   reverse strand) equivalent to the modified base under consideration are
+   reported.
+ * No option to combine per-strand counts into a total count (how to do this
+   generically depends on motif).
+ * Insertion columns are completely ignored for simplicitely (and avoid
+   any heuristics).
 
 ### Python package
 
@@ -130,56 +190,6 @@ relate to the reverse strand:
 * M modified base counts,
 * F filtered counts - bases in reads with a modified-base record but which were filtered
   according to the thresholds provided.
-
-
-### Method
-
-The htslib pileup API is used to create a matrix of per-strand base counts
-including modified bases and deletions. Inserted bases are not counted. Bases
-of an abiguous nature, as defined by the two threshold probabilities are
-masked and used (along with substitutions and deletions) in the definition
-of the "score" column of the bedMethyl file.
-
-> The description of the bedMethyl format on the ENCODE project website is rather
-> loose. The definitions below are chosen pragmatically.
-
-The output bedMethyl file contains per-strand modified base proportions in column 11:
-
-    100 * N_mod / (N_mod + N_canon)
-
-where only canonical bases equivalent to the modified base are counted
-(substitutions and deletions are ignored). Similarly column 5 contains the modified
-count scaled by the total depth on the strand:
-
-    1000 * (N_mod + N_canon) / (N_mod + N_canon + N_filt + N_sub + N_del)
-
-Note the denominator here is the total sequencing depth at the position
-(including deleted and ambiguous bases); the quantity therefore reflects the
-extent to which the decision of modified or canonical base is confounded by
-alternative calls.
-
-#### Extended Output
-
-As the bedMethyl definition is rather loose, the program allows for an "extended"
-output which includes three additional columns reporting counts of relevant bases:
-
- * column 12: count of canonical base,
- * column 13: count of modified base,
- * column 14: count of filtered bases (those with a modification probability
-   falling between the `--low_threshold` and `--high_threshold` parameters).
-
-### Limitations
-
-The code has not been developed extensively and currently has some limitations:
-
- * Support for motif filtering is limit to CpG sites. Without this filtering
-   enabled all reference positions that are the canonical base (on forward or
-   reverse strand) equivalent to the modified base under consideration are
-   reported.
- * No option to combine per-strand counts into a total count (how to do this
-   generically depends on motif).
- * Insertion columns are completely ignored for simplicitely (and avoid
-   any heuristics).
 
 ### Acknowledgements
 
