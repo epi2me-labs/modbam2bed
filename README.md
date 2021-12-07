@@ -69,8 +69,6 @@ modbam2bed -- summarise one or more BAM with modified base tags to bedMethyl.
 
 ```
 
-
-
 ### Method and output format
 
 The htslib pileup API is used to create a matrix of per-strand base counts

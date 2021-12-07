@@ -7,6 +7,7 @@ endif
 
 CC ?= gcc
 CFLAGS ?= -fpic -msse3 -O3 -std=c99
+STATIC_HTSLIB ?= htslib/libhts.a
 EXTRA_CFLAGS ?=
 EXTRA_LDFLAGS ?=
 EXTRA_LIBS ?=
@@ -48,7 +49,7 @@ clean_obj:
 	rm -rf *.o
 
 
-modbam2bed: modbam2bed.o common.o counts.o bamiter.o args.o htslib/libhts.a
+modbam2bed: modbam2bed.o common.o counts.o bamiter.o args.o $(STATIC_HTSLIB)
 	$(CC) -pthread -Wall -fstack-protector-strong -D_FORTIFY_SOURCE=2 $(CFLAGS) \
 		-Isrc -Ihtslib $(EXTRA_CFLAGS) $(EXTRA_LDFLAGS)\
 		$^ $(ARGP) \

@@ -13,29 +13,14 @@ requirements:
     build:
         - {{ compiler('c') }}
     host:
-        - autoconf
         - argp-standalone # [osx]
-        - make
         - binutils # [not osx]
-        - libcurl
-        - bzip2
-        - xz
-        - zlib
-        - libdeflate >=1.7,<1.8.0a0
-        - openssl  # [not osx]
+        - bioconda::htslib
     run:
-        - libcurl
-        - bzip2
-        - xz
-        - zlib
-        - libdeflate >=1.7,<1.8.0a0
-        - openssl  # [not osx]
+        - bioconda::htslib
 
 test:
     commands:
-        # taken from bioconda htslib build
-        - "otool -L $PREFIX/bin/modbam2bed | grep deflate"  # [osx]
-        - "ldd $PREFIX/bin/modbam2bed | grep deflate"  # [not osx]
         - modbam2bed --help
 
 about:

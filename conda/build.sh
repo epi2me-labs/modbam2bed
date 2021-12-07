@@ -2,10 +2,12 @@
 
 NAME=modbam2bed
 
-export HTS_CONF_ARGS="--prefix=${PREFIX} --enable-libcurl --with-libdeflate --enable-plugins --enable-gcs --enable-s3"
+#export HTS_CONF_ARGS="--prefix=${PREFIX} --enable-libcurl --with-libdeflate --enable-plugins --enable-gcs --enable-s3"
+# just link to htslib from bioconda
 export EXTRA_CFLAGS="-I$PREFIX/include"
+export STATIC_HTSLIB=""
 export EXTRA_LDFLAGS="-L$PREFIX/lib"
-export EXTRA_LIBS="-ldl -ldeflate"
+export EXTRA_LIBS="-ldl -lhts"
 
 OS=$(uname)
 if [[ "$OS" == "Darwin" ]]; then

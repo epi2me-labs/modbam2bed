@@ -7,8 +7,8 @@
 #include "htslib/sam.h"
 #include "htslib/faidx.h"
 #include "args.h"
+#include "version.h"
 
-const char *argp_program_version = "0.3.2";
 const char *argp_program_bug_address = "chris.wright@nanoporetech.com";
 static char doc[] = 
  "modbam2bed -- summarise one or more BAM with modified base tags to bedMethyl.\
