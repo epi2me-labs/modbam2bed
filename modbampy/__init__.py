@@ -6,7 +6,7 @@ import numpy as np
 
 import libmodbampy
 
-__version__ = "0.3.2"
+__version__ = "0.3.3"
 ffi = libmodbampy.ffi
 libbam = libmodbampy.lib
 
