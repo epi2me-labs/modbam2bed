@@ -35,8 +35,10 @@ cdef = ["""
     // export free
     void free(void *ptr);
 
+    typedef int64_t hts_pos_t;
+
     // basic bam opening/handling
-    typedef struct bam1_core_t {uint16_t flag; uint32_t l_qseq; ...;} bam1_core_t;
+    typedef struct bam1_core_t {hts_pos_t pos; uint16_t flag; uint32_t l_qseq; ...;} bam1_core_t;
     typedef struct bam1_t {bam1_core_t core; uint8_t *data; ...;} bam1_t;
     typedef struct mplp_data {...;} mplp_data;
     mplp_data *create_bam_iter_data(
@@ -47,6 +49,9 @@ cdef = ["""
     int read_bam(void *data, bam1_t *b);
     // cigar parsing
     int *qpos2rpos(bam1_t *b);
+
+    // things from htslib
+    hts_pos_t bam_endpos(const bam1_t *b);
 
     // retrieving mod data
     typedef struct hts_base_mod_state hts_base_mod_state;

@@ -90,7 +90,7 @@ clean_python: clean_obj
 pymod.a: common.o bamiter.o counts.o args.o 
 	ar rcs $@ $^
 
-test_python: venv
+test_python: python
 	${IN_VENV} && pip install flake8 flake8-rst-docstrings flake8-docstrings flake8-import-order
 	${IN_VENV} && flake8 modbampy \
 		--import-order-style google --application-import-names modbampy,libmodbampy \

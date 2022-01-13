@@ -1,16 +1,23 @@
 """Functionality for interacting with modified base tags in BAM files."""
 
 import argparse
+import collections
 
 import numpy as np
 
 import libmodbampy
 
-__version__ = "0.3.3"
+__version__ = "0.4.0"
 ffi = libmodbampy.ffi
 libbam = libmodbampy.lib
 
 MAX_MODS = 256  # from htslib
+
+
+ModInfo = collections.namedtuple(
+    'ModInfo', (
+        'query_name', 'rpos', 'qpos', 'strand', 'mstrand',
+        'cbase', 'mbase', 'qual'))
 
 
 def _tidy_args(read_group, tag_name, tag_value):
@@ -78,24 +85,119 @@ class ModRead:
     The class is not intended to be instantiated by users.
     """
 
-    def __init__(self, bam1_t, mod_state):
+    def __init__(self, bam1_t, mod_state, header=None):
         """Create an interface to alignment."""
         self._bam1_t = bam1_t
         self._mod_state = mod_state
-        self.read_id = ffi.string(
-            (ffi.cast("char*", self._bam1_t.data))).decode()
-        self.flags = self._bam1_t.core.flag
-        self.is_reverse = self._bam1_t.core.flag & 16 > 0
-        self.qlen = self._bam1_t.core.l_qseq
-        self.strand = '+-'[self.is_reverse]
+        self._header = header
 
+    @property
+    def flags(self):
+        """Return alignment flags."""
+        return self._bam1_t.core.flag
+
+    @property
+    def is_unmapped(self):
+        """Return if read is unmapped."""
+        return self._bam1_t.core.flag & 4 > 0
+
+    @property
+    def is_reverse(self):
+        """Return if alignment is to reverse strand."""
+        return self._bam1_t.core.flag & 16 > 0
+
+    @property
+    def is_secondary(self):
+        """Return if alignment is a secondary alignment."""
+        return self._bam1_t.core.flag & 256 > 0
+
+    @property
+    def is_supplementary(self):
+        """Return is alignment is a supplementary alignment."""
+        return self._bam1_t.core.flag & 2048 > 0
+
+    @property
+    def strand(self):
+        """Return strand as '+' or '-'."""
+        return "+-"[self.is_reverse]
+
+    @property
+    def query_name(self):
+        """Return query name."""
+        return ffi.string(
+            (ffi.cast("char*", self._bam1_t.data))).decode()
+
+    @property
+    def query_length(self):
+        """Return query length as record in BAM. See `query_sequence`."""
+        return self._bam1_t.core.l_qseq
+
+    @property
+    def query_sequence(self):
+        """Return the query sequence as recorded in the BAM.
+
+        Includes soft-clipped bases, does not include hard-clipped bases, and
+        may return an error when sequence is not recorded.
+        """
+        # bam1_seq() define
+        # (b)->data + ((b)->core.n_cigar<<2) + (b)->core.l_qname)
+        raise NotImplementedError("query_sequence not implemented")
+
+    @property
+    def query_qualities(self):
+        """Return the query quality array.
+
+        Includes soft-clipped bases as for `query_sequence`.
+        """
+        # bam1_qual define
+        # ((b)->data + ((b)->core.n_cigar<<2)
+        #   + (b)->core.l_qname + (((b)->core.l_qseq + 1)>>1))
+        raise NotImplementedError("query_qualities not implemented")
+
+    @property
+    def reference_name(self):
+        """Return the reference name associated with the alignment."""
+        if self._bam1_t.core.tid == -1:
+            return None
+        elif self.header is None:
+            raise IndexError(
+                "Require header information to retrieve reference_name")
+        else:
+            raise NotImplementedError(
+                "Fetching reference_name not implemented")
+
+    @property
+    def reference_start(self):
+        """Return the 0-based start position of the alignment."""
+        return self._bam1_t.core.pos
+
+    @property
+    def reference_end(self):
+        """Return the 0-based (exclusive) end position of the alignment."""
+        return libbam.bam_endpos(self._bam1_t)
+
+    @property
+    def reference_length(self):
+        """Return the length of the alignment on the reference."""
+        return self.reference_end - self.reference_start
+
+    @property
+    def get_aligned_pairs(self):
+        """Return aligned query and reference positions."""
+        raise NotImplementedError("get_aligned_pairs not implemented")
+
+    @property
     def alignment(self):
         """Create array representing alignment.
 
-        The returned item is of length self->qlen.
+        The returned item is of length self.query_length
         """
-        return ffi.gc(libbam.qpos2rpos(self._bam1_t), libbam.free)
+        if not hasattr(self, "_alignment"):
+            self._alignment = ffi.gc(
+                libbam.qpos2rpos(self._bam1_t), libbam.free)
+        return self._alignment
 
+    @property
     def mod_sites(self):
         """Iterate over all modified bases in read.
 
@@ -106,7 +208,7 @@ class ModRead:
         """
         mods = ffi.new("hts_base_mod[{}]".format(MAX_MODS))
         pos = ffi.new("int *")
-        align = self.alignment()
+        align = self.alignment
         libbam.bam_parse_basemod(self._bam1_t, self._mod_state)
         n = 1
         while n > 0:
@@ -117,8 +219,8 @@ class ModRead:
                 for i in range(n):
                     m = mods[i]
                     # note m.strand refers to strand recorded in the Mm tag.
-                    yield (
-                        self.read_id, rpos, pos[0], self.strand, m.strand,
+                    yield ModInfo(
+                        self.query_name, rpos, pos[0], self.strand, m.strand,
                         chr(m.canonical_base), chr(m.modified_base), m.qual)
 
 
@@ -143,8 +245,12 @@ def pileup(
         int(x * 255.0) for x in (low_threshold, high_threshold))
     read_group, tag_name, tag_value = _tidy_args(
         read_group, tag_name, tag_value)
+
+    bams_p = [ffi.new("char[]", bam.encode())]
+    # nfiles is derived from this array, stick an extra nul
+    bams_pp = ffi.new("char *[2]", bams_p)
     plp_data = libbam.calculate_pileup(
-        bam.encode(), chrom.encode(), start, end,
+        bams_pp, chrom.encode(), start, end,
         read_group, tag_name, tag_value,
         low_threshold, high_threshold, mod_base.encode())
 
@@ -201,8 +307,7 @@ def main():
         counts = Counter()
         with ModBam(args.bam, args.chrom, args.start, args.end) as bam:
             for read in bam.reads():
-                for pos_mod in read.mod_sites():
-                    counts[pos_mod[7]] += 1
-                    #print(*pos_mod)
+                for pos_mod in read.mod_sites:
+                    counts[pos_mod.qual] += 1
         for k in sorted(counts.keys()):
             print(k, counts[k])
