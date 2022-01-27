@@ -30,8 +30,8 @@ dependencies from brew) and on Ubuntu 18.04.
 
 ### Usage
 
-The code requires aligned reads with the `Mm` and `Ml` tags, and the reference
-sequence used for alignment.
+The code requires aligned reads with the `Mm` and `Ml` tags (`MM` and `ML` also supported),
+and the reference sequence used for alignment.
 
 ```
 Usage: modbam2bed [OPTION...] <reference.fasta> <reads.bam> [<reads.bam> ...]
@@ -52,7 +52,7 @@ modbam2bed -- summarise one or more BAM with modified base tags to bedMethyl.
                              counted as canonical.
   -b, --mod_threshold=THRESHOLD   Bases with mod. probability > THRESHOLD are
                              counted as modified.
-  -c, --cpg                  Output records filtered to CpG sited.
+  -c, --cpg                  Output records filtered to CpG sites.
 
  Read filtering options:
   -g, --read_group=RG        Only process reads from given read group.
@@ -90,7 +90,7 @@ bases to agree with reasonable interpretations of the bedMethyl specifications:
  * N<sub>mod</sub> - modified base count.
  * N<sub>filt</sub> - count of bases where read does not contain a substitution or deletion
    with respect to the reference, but the modification status is ambiguous: these bases
-   where filtered from the calculation of the modification frequency.
+   were filtered from the calculation of the modification frequency.
  * N<sub>sub</sub> - count of reads with a substitution with respect to the reference.
  * N<sub>del</sub> - count of reads with a deletion with respect to the reference.
 
@@ -108,10 +108,10 @@ with verbatim base counts.
 | 6      | Strand (of reference sequence). Forward "+", or reverse "-".                                                                                                                                                                                                                 |
 | 7-9    | Ignore, included simply for compatibility.                                                                                                                                                                                                                                   |
 | 10     | Read coverage at reference position including all canonical, modified, undecided (filtered), substitutions from reference, and deletions.  N<sub>mod</sub> + N<sub>canon</sub> + N<sub>filt</sub> + N<sub>sub</sub> + N<sub>del</sub>                                        |
-| 11     | Percentage of modified bases, as a proportion of canonical and modified (excluding filtered, substitutions, and deletions).  100 \* N<sub>canon</sub> / (N<sub>mod</sub> + N<sub>canon</sub>)                                                                                       |
+| 11     | Percentage of modified bases, as a proportion of canonical and modified (excluding filtered, substitutions, and deletions).  100 \* N<sub>mod</sub> / (N<sub>mod</sub> + N<sub>canon</sub>)                                                                                       |
 | 12\*    | N<sub>canon</sub>                                                                                                                                                                                                                                                            |
-| 13\*    | N<sub>modified</sub>                                                                                                                                                                                                                                                         |
-| 14\*    | N<sub>filtered</sub> those bases with a modification probability falling between given thresholds.                                                                                                                                                                           |
+| 13\*    | N<sub>mod</sub>                                                                                                                                                                                                                                                         |
+| 14\*    | N<sub>filt</sub> those bases with a modification probability falling between given thresholds.                                                                                                                                                                           |
 
 \* Included in extended output only.
 
@@ -126,7 +126,7 @@ The code has not been developed extensively and currently has some limitations:
    reported.
  * No option to combine per-strand counts into a total count (how to do this
    generically depends on motif).
- * Insertion columns are completely ignored for simplicitely (and avoid
+ * Insertion columns are completely ignored for simplicitly (and avoid
    any heuristics).
 
 ### Python package
@@ -188,6 +188,12 @@ relate to the reverse strand:
 * M modified base counts,
 * F filtered counts - bases in reads with a modified-base record but which were filtered
   according to the thresholds provided.
+
+**Extras**
+
+The read iterator API also contains a minimal set of functionality mirroring properties of 
+alignments available from pysam. See the [code](https://github.com/epi2me-labs/modbam2bed/blob/master/modbampy/__init__.py)
+for further details.
 
 ### Acknowledgements
 

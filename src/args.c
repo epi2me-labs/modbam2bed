@@ -43,7 +43,7 @@ static struct argp_option options[] = {
     {"mod_threshold", 'b', "THRESHOLD", 0,
         "Bases with mod. probability > THRESHOLD are counted as modified.", 2},
     {"cpg", 'c', 0, 0,
-        "Output records filtered to CpG sited.", 2},
+        "Output records filtered to CpG sites.", 2},
     {0, 0, 0, 0,
         "Read filtering options:"},
     {"read_group", 'g', "RG", 0,
