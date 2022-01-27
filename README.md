@@ -52,7 +52,7 @@ modbam2bed -- summarise one or more BAM with modified base tags to bedMethyl.
                              counted as canonical.
   -b, --mod_threshold=THRESHOLD   Bases with mod. probability > THRESHOLD are
                              counted as modified.
-  -c, --cpg                  Output records filtered to CpG sited.
+  -c, --cpg                  Output records filtered to CpG sites.
 
  Read filtering options:
   -g, --read_group=RG        Only process reads from given read group.
