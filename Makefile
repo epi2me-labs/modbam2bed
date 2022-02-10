@@ -1,8 +1,9 @@
 OS := $(shell uname)
 ifeq ($(OS), Darwin)
 	# mainly for dev builds using homebrew things
-    EXTRA_LDFLAGS ?= -L/usr/local/Cellar/openssl@1.1/1.1.1k/lib
-    ARGP ?= /usr/local/Cellar/argp-standalone/1.3/lib/libargp.a
+    EXTRA_LDFLAGS ?= -L/opt/homebrew/Cellar/openssl@1.1/1.1.1m/lib
+    ARGP ?= /opt/homebrew/Cellar/argp-standalone/1.3/lib/libargp.a
+	ARGP_INCLUDE ?= -I/opt/homebrew/Cellar/argp-standalone/1.3/include
 endif
 
 CC ?= gcc
@@ -42,7 +43,7 @@ clean_htslib:
 %.o: src/%.c
 	mkdir -p obj && \
 		$(CC) -c -pthread -Wall -fstack-protector-strong -D_FORTIFY_SOURCE=2 $(CFLAGS) \
-		-Isrc -Ihtslib $(EXTRA_CFLAGS) $^ -o $@
+		-Isrc -Ihtslib $(ARGP_INCLUDE) $(EXTRA_CFLAGS) $^ -o $@
 
 .PHONY: clean_obj
 clean_obj:

@@ -95,7 +95,9 @@ void print_pileup_data(plp_data pileup){
  *  @returns void
  *
  */
-void print_bedmethyl(plp_data pileup, char *ref, int rstart, bool extended, char* feature, char canon_base, bool cpg){
+void print_bedmethyl(
+        plp_data pileup, char *ref, int rstart, bool extended,
+        char* feature, char canon_base, bool cpg){
     // ecoli1  100718  100719  .       4       +       100718  100719  0,0,0   3       0
     
     // this is a bit naff, we should introspect these indices, or have them
@@ -125,14 +127,17 @@ void print_bedmethyl(plp_data pileup, char *ref, int rstart, bool extended, char
         size_t rpos = pos - rstart;
         char rbase = ref[rpos];
         if (rbase == canon_base){
-            if (cpg && rpos < rlen - 1  && ref[rpos + 1] != 'G') {
+            if (cpg && rpos < rlen - 1  &&
+                    // allow soft-masked positions to pass through
+                    (ref[rpos + 1] != 'G' || ref[rpos + 1] != 'g')) {
                 continue;
             }
             isrev = 0; mi = fwd_mod; fi = fwd_filt; ci = cif;
             bases = fwdbases;
         } else if (rbase == rc_canon_base) {
             // e.g. G on rev strand is C in reads
-            if (cpg && rpos != 0 && ref[rpos - 1] != 'C') {
+            if (cpg && rpos != 0 &&
+                    (ref[rpos - 1] != 'C' || ref[rpos + 1] != 'c')) {
                 continue;
             }
             isrev = 1; mi = rev_mod; fi = rev_filt; ci = cir;
