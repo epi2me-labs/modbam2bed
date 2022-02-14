@@ -127,17 +127,14 @@ void print_bedmethyl(
         size_t rpos = pos - rstart;
         char rbase = ref[rpos];
         if (rbase == canon_base){
-            if (cpg && rpos < rlen - 1  &&
-                    // allow soft-masked positions to pass through
-                    (ref[rpos + 1] != 'G' && ref[rpos + 1] != 'g')) {
+            if (cpg && rpos < rlen - 1 && ref[rpos + 1] != 'G') {
                 continue;
             }
             isrev = 0; mi = fwd_mod; fi = fwd_filt; ci = cif;
             bases = fwdbases;
         } else if (rbase == rc_canon_base) {
             // e.g. G on rev strand is C in reads
-            if (cpg && rpos != 0 &&
-                    (ref[rpos - 1] != 'C' && ref[rpos + 1] != 'c')) {
+            if (cpg && rpos != 0 && ref[rpos - 1] != 'C') {
                 continue;
             }
             isrev = 1; mi = rev_mod; fi = rev_filt; ci = cir;

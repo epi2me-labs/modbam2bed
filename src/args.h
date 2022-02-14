@@ -34,6 +34,7 @@ typedef struct arguments {
     int tag_value;
     mod_base mod_base;
     bool cpg;
+    bool mask;
     bool extended;
     int threads;
     int lowthreshold;

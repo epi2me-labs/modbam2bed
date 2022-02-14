@@ -1,5 +1,6 @@
 // modbam2bed program
 
+#include <ctype.h>
 #include <string.h>
 #include <stdbool.h>
 #include <stdio.h>
@@ -57,6 +58,9 @@ int main(int argc, char *argv[]) {
             int len = faidx_seq_len(fai, chr);
             int alen;
             char *ref = faidx_fetch_seq(fai, chr, 0, len, &alen);
+            if (!args.mask) {
+                for (size_t i=0; i<alen; ++i){ ref[i] = toupper(ref[i]); }
+            }
             fprintf(stderr, "Fetched %s, %i %i\n", chr, len, alen);
             process_region(args, chr, 0, len, ref);
             free(ref);
@@ -80,6 +84,9 @@ int main(int argc, char *argv[]) {
         if (len < 0) {
             fprintf(stderr, "ERROR: Failed to fetch reference region: '%s'.\n", args.region);
             exit(EXIT_FAILURE);
+        }
+        if (!args.mask) {
+            for (size_t i=0; i<len; ++i){ ref[i] = toupper(ref[i]); }
         }
         end = min(end, len);
         process_region(args, chr, start, end, ref);

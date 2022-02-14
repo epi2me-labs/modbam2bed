@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v0.4.5]
+### Fixed
+- Unmasking of reference sites (again).
+### Added
+- Option `--mask`/`-k` to respect reference soft-masking.
+
 ## [v0.4.4]
 ### Fixed
 - Logic error in filtering CpG sites for masked bases.

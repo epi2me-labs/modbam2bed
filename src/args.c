@@ -44,6 +44,8 @@ static struct argp_option options[] = {
         "Bases with mod. probability > THRESHOLD are counted as modified.", 2},
     {"cpg", 'c', 0, 0,
         "Output records filtered to CpG sites.", 2},
+    {"mask", 'k', 0, 0,
+        "Respect soft-masking in reference file.", 2},
     {0, 0, 0, 0,
         "Read filtering options:"},
     {"read_group", 'g', "RG", 0,
@@ -101,6 +103,9 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state) {
             break;
         case 'c':
             arguments->cpg = true;
+            break;
+        case 'k':
+            arguments->mask = true;
             break;
         case 'e':
             arguments->extended = true;
@@ -175,6 +180,7 @@ arguments_t parse_arguments(int argc, char** argv) {
     args.tag_name[0] = '\0';
     args.tag_value = -1;
     args.cpg = false;
+    args.mask = false;
     args.extended = false;
     args.threads = 1;
     argp_parse(&argp, argc, argv, 0, 0, &args);
