@@ -1,9 +1,12 @@
 OS := $(shell uname)
+ARCH := $(shell arch)
+
 ifeq ($(OS), Darwin)
-	# mainly for dev builds using homebrew things
-    EXTRA_LDFLAGS ?= -L/opt/homebrew/Cellar/openssl@1.1/1.1.1m/lib
-    ARGP ?= /opt/homebrew/Cellar/argp-standalone/1.3/lib/libargp.a
-	ARGP_INCLUDE ?= -I/opt/homebrew/Cellar/argp-standalone/1.3/include
+# mainly for dev builds using homebrew things
+ARGP ?= /opt/homebrew/opt/argp-standalone/lib/libargp.a
+ARGP_INCLUDE ?= -I/opt/homebrew/opt/argp-standalone/include
+EXTRA_LDFLAGS ?= -L/opt/homebrew/opt/openssl@3/lib
+CFLAGS ?= -fpic -O3 -std=c99
 endif
 
 CC ?= gcc
@@ -82,13 +85,13 @@ $(VENV)/bin/activate:
 .PHONY: python
 python: htslib/libhts.a pymod.a $(VENV)/bin/activate
 	${IN_VENV} && pip install -r requirements.txt
-	${IN_VENV} && python setup.py develop
+	${IN_VENV} && LDFLAGS=$(EXTRA_LDFLAGS) pip install -e .
 
 .PHONY: clean_python
 clean_python: clean_obj
 	rm -rf dist build modbampy.egg-info pymod.a libmodbampy.abi3.so ${VENV}
 
-pymod.a: common.o bamiter.o counts.o args.o 
+pymod.a: common.o bamiter.o counts.o
 	ar rcs $@ $^
 
 test_python: python

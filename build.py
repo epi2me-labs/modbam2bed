@@ -11,7 +11,6 @@ ffibuilder = FFI()
 ffibuilder.set_source("libmodbampy",
     r"""
     #include "htslib/sam.h"
-    #include "args.h"
     #include "bamiter.h"
     #include "common.h"
     #include "counts.h"
@@ -73,7 +72,7 @@ cdef = ["""
 """]
 
 # add in some things from headers, removing directives
-for header in ('src/args.h', 'src/counts.h'):
+for header in ('src/counts.h', ):
     with open(header, 'r') as fh:
         cdef.append("// START: {}".format(header))
         cdef.append(

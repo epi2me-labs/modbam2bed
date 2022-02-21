@@ -7,11 +7,109 @@
 #include <stdlib.h>
 #include <sys/resource.h>
 #include <time.h>
+#include "htslib/sam.h"
 #include "htslib/faidx.h"
+#include "htslib/thread_pool.h"
 
 #include "common.h"
 #include "counts.h"
 #include "args.h"
+
+
+typedef struct twarg {
+    arguments_t args;
+    const char *chr;
+    int start;
+    int end;
+} twarg;
+
+
+void *pileup_worker(void *arg) {
+    twarg j = *(twarg *)arg;
+    plp_data pileup = calculate_pileup(
+        j.args.bam, j.chr, j.start, j.end,
+        j.args.read_group, j.args.tag_name, j.args.tag_value,
+        j.args.lowthreshold, j.args.highthreshold, j.args.mod_base.code);
+    free(arg);
+    return pileup;
+}
+
+
+/* Process and print a single region using a threadpool
+ *
+ * @param args program arguments.
+ * @param chr reference sequence to process.
+ * @param start reference coordinate to process (0-based).
+ * @param end reference coordiate to process (exclusive).
+ * @param ref reference sequence.
+ *
+ */
+#ifdef NOTHREADS
+void process_region(arguments_t args, const char *chr, int start, int end, char *ref) {
+    fprintf(stderr, "Processing: %s:%d-%d\n", chr, start, end);
+    plp_data pileup = calculate_pileup(
+        args.bam, chr, start, end,
+        args.read_group, args.tag_name, args.tag_value,
+        args.lowthreshold, args.highthreshold, args.mod_base.code);
+    if (pileup == NULL) return;
+    print_bedmethyl(pileup, ref, 0, args.extended, args.mod_base.abbrev, args.mod_base.base, args.cpg);
+    destroy_plp_data(pileup);
+}
+#else
+void process_region(arguments_t args, const char *chr, int start, int end, char *ref) {
+    fprintf(stderr, "Processing: %s:%d-%d\n", chr, start, end);
+    // create thread pool
+    hts_tpool *p = hts_tpool_init(args.threads);
+    hts_tpool_process *q = hts_tpool_process_init(p, 2 * args.threads, 0);
+    hts_tpool_result *r;
+    const int width = 1000000;
+
+    int nregs = 1 + (end - start) / width; float done = 0;
+    for (int rstart = start; rstart < end; rstart += width) {
+        twarg *tw_args = xalloc(1, sizeof(*tw_args), "thread worker args");  // freed in worker
+        tw_args->args = args;
+        tw_args->chr = chr; tw_args->start = rstart; tw_args->end=min(rstart + width, end);
+        int blk;
+        do {
+            blk = hts_tpool_dispatch2(p, q, pileup_worker, tw_args, 1);
+            if ((r = hts_tpool_next_result(q))) {
+                plp_data res = (plp_data)hts_tpool_result_data(r);
+                if (res != NULL) {
+                    print_bedmethyl(
+                        res, ref, 0,
+                        args.extended, args.mod_base.abbrev, args.mod_base.base, args.cpg);
+                    destroy_plp_data(res);
+                    done++;
+                    fprintf(stderr, "\r%.1f %%", 100*done/nregs);
+                }
+                hts_tpool_delete_result(r, 0);
+            }
+        } while (blk == -1);
+    }
+
+    // wait for jobs, then collect.
+    hts_tpool_process_flush(q);
+    while ((r = hts_tpool_next_result(q))) {
+        plp_data res = (plp_data)hts_tpool_result_data(r);
+        if (res != NULL) {
+            print_bedmethyl(
+                res, ref, 0,
+                args.extended, args.mod_base.abbrev, args.mod_base.base, args.cpg);
+            destroy_plp_data(res);
+            done++;
+            fprintf(stderr, "\r%.1f %%", 100*done/nregs);
+        }
+        hts_tpool_delete_result(r, 0);
+    }
+    fprintf(stderr, "\r100 %%  ");
+    fprintf(stderr, "\n");
+    // clean up pool
+    hts_tpool_process_destroy(q);
+    hts_tpool_destroy(p);
+}
+#endif
+
+
 
 
 int main(int argc, char *argv[]) {
