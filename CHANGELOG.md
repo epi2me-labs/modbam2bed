@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [v0.4.6]
 ### Changed
 - Reworked compilation to remove argparser from Python module.
+### Fixed
+- Memory leak in modbampy.
 
 ## [v0.4.5]
 ### Fixed

@@ -56,7 +56,7 @@ class ModBam:
         read_group, tag_name, tag_value = _tidy_args(
             read_group, tag_name, tag_value)
 
-        self._bam1_t = ffi.new("bam1_t *")
+        self._bam1_t = libbam.bam_init1()
         self._data = ffi.gc(
             libbam.create_bam_iter_data(
                 bam.encode(), chrom.encode(), start, end,
@@ -65,6 +65,9 @@ class ModBam:
         self._mod_state = ffi.gc(
             libbam.hts_base_mod_state_alloc(),
             libbam.hts_base_mod_state_free)
+
+    def __del__(self):
+        libbam.bam_destroy1(self._bam1_t)
 
     def __enter__(self):
         """Open context."""

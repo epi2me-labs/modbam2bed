@@ -39,6 +39,8 @@ cdef = ["""
     // basic bam opening/handling
     typedef struct bam1_core_t {hts_pos_t pos; uint16_t flag; uint32_t l_qseq; ...;} bam1_core_t;
     typedef struct bam1_t {bam1_core_t core; uint8_t *data; ...;} bam1_t;
+    bam1_t *bam_init1();
+    void bam_destroy1(bam1_t *b);
     typedef struct mplp_data {...;} mplp_data;
     mplp_data *create_bam_iter_data(
         const char *bam_file, const char *chr, int start, int end,
