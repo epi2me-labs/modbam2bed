@@ -4,6 +4,57 @@
 #include "bamiter.h"
 #include "common.h"
 
+
+// Initialise BAM file, index and header structures
+bam_fset* create_bam_fset(const char* fname) {
+    bam_fset* fset = xalloc(1, sizeof(bam_fset), "bam fileset");
+    fset->fp = hts_open(fname, "rb");
+    fset->idx = sam_index_load(fset->fp, fname);
+    fset->hdr = sam_hdr_read(fset->fp);
+    if (fset->hdr == 0 || fset->idx == 0 || fset->fp == 0) {
+        destroy_bam_fset(fset);
+        fprintf(stderr, "Failed to read .bam file '%s'.", fname);
+        exit(1);
+    }
+    return fset;
+}
+
+// Destory BAM file, index and header structures
+void destroy_bam_fset(bam_fset* fset) {
+    hts_close(fset->fp);
+    hts_idx_destroy(fset->idx);
+    sam_hdr_destroy(fset->hdr);
+    free(fset);
+}
+
+// Initialise multiple BAM filesets
+set_fsets *create_filesets(const char **bam_files) {
+    int nfile = 0; for (; bam_files[nfile]; nfile++);
+    set_fsets *sets = xalloc(1, sizeof(set_fsets), "bam file sets");
+    sets->fsets = xalloc(nfile, sizeof(bam_fset*), "bam files");
+    sets->n = nfile;
+    for (size_t i = 0; i < nfile; ++i) {
+        sets->fsets[i] = create_bam_fset((const char *) bam_files[i]);
+        if (sets->fsets[i] == NULL) {
+            for (size_t j = 0; j < i; ++j) {
+                destroy_bam_fset(sets->fsets[i]);
+            }
+            free(sets->fsets); free(sets);
+            return NULL;
+        }
+    }
+    return sets;
+}
+
+// Destroy multiple BAM filesets
+void destroy_filesets(set_fsets *s) {
+    for (size_t i = 0; i < s->n; ++i) {
+        destroy_bam_fset(s->fsets[i]);
+    }
+    free(s->fsets); free(s);
+}
+
+
 /** Set up a bam file for reading (filtered) records.
  *
  *  @param bam_file input aligment file.
@@ -18,18 +69,14 @@
  *
  */
 mplp_data *create_bam_iter_data(
-        const char *bam_file, const char *chr, int start, int end,
+        const bam_fset* bam_set, const char *chr, int start, int end,
         const char *read_group, const char tag_name[2], const int tag_value) {
 
     // open bam etc.
-    htsFile *fp = hts_open(bam_file, "rb");
-    hts_idx_t *idx = sam_index_load(fp, bam_file);
-    sam_hdr_t *hdr = sam_hdr_read(fp);
-    if (hdr == 0 || idx == 0 || fp == 0) {
-        hts_close(fp); hts_idx_destroy(idx); sam_hdr_destroy(hdr);
-        fprintf(stderr, "Failed to read .bam file '%s'.\n", bam_file);
-        return NULL;
-    }
+    // this is all now deferred to the caller
+    htsFile *fp = bam_set->fp;
+    hts_idx_t *idx = bam_set->idx; 
+    sam_hdr_t *hdr = bam_set->hdr;
 
     // find the target index for query below
     int mytid = -1;
@@ -40,8 +87,7 @@ mplp_data *create_bam_iter_data(
         }
     }
     if (mytid == -1) {
-        hts_close(fp); hts_idx_destroy(idx); sam_hdr_destroy(hdr);
-        fprintf(stderr, "Failed to find reference sequence '%s' in bam '%s'.\n", chr, bam_file);
+        fprintf(stderr, "Failed to find reference sequence '%s' in bam.\n", chr);
         return NULL;
     }
 
@@ -62,9 +108,6 @@ mplp_data *create_bam_iter_data(
  */
 void destroy_bam_iter_data(mplp_data *data) {
     bam_itr_destroy(data->iter);
-    hts_close(data->fp);
-    hts_idx_destroy(data->idx);
-    sam_hdr_destroy(data->hdr);
     free(data);
 }
 

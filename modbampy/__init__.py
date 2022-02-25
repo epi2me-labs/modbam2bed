@@ -41,11 +41,29 @@ class ModBam:
     """A minimal class to iterate over a bam."""
 
     def __init__(
-            self, bam, chrom, start, end,
-            read_group=None, tag_name=None, tag_value=None):
+            self, bam, read_group=None, tag_name=None, tag_value=None):
         """Open a BAM file.
 
         :param bam: BAM file to open.
+        """
+        self.bam = bam
+        self._bam_fset = ffi.gc(
+            libbam.create_bam_fset(self.bam.encode()),
+            libbam.destroy_bam_fset)
+
+    def __enter__(self):
+        """Open context."""
+        return self
+
+    def __exit__(self, type, value, traceback):
+        """Exit context."""
+        pass
+
+    def reads(
+            self, chrom, start, end,
+            read_group=None, tag_name=None, tag_value=None):
+        """Iterate over (filtered) alignments in file.
+
         :param chrom: reference sequence from BAM.
         :param start: reference start coordinate.
         :param end: reference end coordinate.
@@ -56,31 +74,62 @@ class ModBam:
         read_group, tag_name, tag_value = _tidy_args(
             read_group, tag_name, tag_value)
 
-        self._bam1_t = libbam.bam_init1()
-        self._data = ffi.gc(
+        data = ffi.gc(
             libbam.create_bam_iter_data(
-                bam.encode(), chrom.encode(), start, end,
+                self._bam_fset, chrom.encode(), start, end,
                 read_group, tag_name, tag_value),
             libbam.destroy_bam_iter_data)
-        self._mod_state = ffi.gc(
+        mod_state = ffi.gc(
             libbam.hts_base_mod_state_alloc(),
             libbam.hts_base_mod_state_free)
 
-    def __del__(self):
-        libbam.bam_destroy1(self._bam1_t)
+        bam1_t = ffi.gc(libbam.bam_init1(), libbam.bam_destroy1)
+        while libbam.read_bam(data, bam1_t) > 0:
+            yield ModRead(bam1_t, mod_state)
 
-    def __enter__(self):
-        """Open context."""
-        return self
+    def pileup(
+            self, chrom, start, end,
+            read_group=None, tag_name=None, tag_value=None,
+            low_threshold=0.33, high_threshold=0.66, mod_base="m"):
+        """Create a base count matrix.
 
-    def __exit__(self, type, value, traceback):
-        """Exit context."""
-        pass
+        :param chrom: reference sequence from BAM.
+        :param start: reference start coordinate.
+        :param end: reference end coordinate.
+        :param read group: read group of read to return.
+        :param tag_name: read tag to check during read filtering.
+        :param tag_value: tag value for reads to keep.
+        """
+        for thresh in (low_threshold, high_threshold):
+            if thresh < 0.0 or thresh > 1.0:
+                raise ValueError("Thresholds should be in (0,1).")
+        low_threshold, high_threshold = (
+            int(x * 255.0) for x in (low_threshold, high_threshold))
+        read_group, tag_name, tag_value = _tidy_args(
+            read_group, tag_name, tag_value)
 
-    def reads(self):
-        """Iterate over (filtered) alignments in file."""
-        while libbam.read_bam(self._data, self._bam1_t) > 0:
-            yield ModRead(self._bam1_t, self._mod_state)
+        _f = ffi.new("bam_fset *[]", [self._bam_fset]);
+        fsets = ffi.new("set_fsets *", {"fsets": _f, "n": 1})
+        plp_data = libbam.calculate_pileup(
+            fsets, chrom.encode(), start, end,
+            read_group, tag_name, tag_value,
+            low_threshold, high_threshold, mod_base.encode())
+        # TODO: check for NULL
+
+        # copy data to numpy, we could be more clever here an wrap
+        #   the pointer in a subclass of ndarray to track its lifetime
+        #   and avoid the explicit copy
+        n_rows = libbam.featlen
+        size_sizet = np.dtype(np.uintp).itemsize
+        np_counts = np.frombuffer(ffi.buffer(
+            plp_data.matrix, size_sizet * plp_data.n_cols * n_rows),
+            dtype=np.uintp
+        ).reshape(plp_data.n_cols, n_rows).copy()
+        np_positions = np.frombuffer(
+            ffi.buffer(plp_data.major, size_sizet * plp_data.n_cols),
+            dtype=np.uintp).copy()
+        libbam.destroy_plp_data(plp_data)
+        return np_positions, np_counts
 
 
 class ModRead:
@@ -228,52 +277,6 @@ class ModRead:
                         chr(m.canonical_base), chr(m.modified_base), m.qual)
 
 
-def pileup(
-        bam, chrom, start, end,
-        read_group=None, tag_name=None, tag_value=None,
-        low_threshold=0.33, high_threshold=0.66, mod_base="m"):
-    """Create a base count matrix.
-
-    :param bam: BAM file to open.
-    :param chrom: reference sequence from BAM.
-    :param start: reference start coordinate.
-    :param end: reference end coordinate.
-    :param read group: read group of read to return.
-    :param tag_name: read tag to check during read filtering.
-    :param tag_value: tag value for reads to keep.
-    """
-    for thresh in (low_threshold, high_threshold):
-        if thresh < 0.0 or thresh > 1.0:
-            raise ValueError("Thresholds should be in (0,1).")
-    low_threshold, high_threshold = (
-        int(x * 255.0) for x in (low_threshold, high_threshold))
-    read_group, tag_name, tag_value = _tidy_args(
-        read_group, tag_name, tag_value)
-
-    bams_p = [ffi.new("char[]", bam.encode())]
-    # nfiles is derived from this array, stick an extra nul
-    bams_pp = ffi.new("char *[2]", bams_p)
-    plp_data = libbam.calculate_pileup(
-        bams_pp, chrom.encode(), start, end,
-        read_group, tag_name, tag_value,
-        low_threshold, high_threshold, mod_base.encode())
-
-    # copy data to numpy, we could be more clever here an wrap
-    #   the pointer in a subclass of ndarray to track its lifetime
-    #   and avoid the explicit copy
-    n_rows = libbam.featlen
-    size_sizet = np.dtype(np.uintp).itemsize
-    np_counts = np.frombuffer(ffi.buffer(
-        plp_data.matrix, size_sizet * plp_data.n_cols * n_rows),
-        dtype=np.uintp
-    ).reshape(plp_data.n_cols, n_rows).copy()
-    np_positions = np.frombuffer(
-        ffi.buffer(plp_data.major, size_sizet * plp_data.n_cols),
-        dtype=np.uintp).copy()
-    libbam.destroy_plp_data(plp_data)
-    return np_positions, np_counts
-
-
 def main():
     """Test entry point."""
     parser = argparse.ArgumentParser(
@@ -296,22 +299,20 @@ def main():
         help="Modified base to count during pileup.")
     args = parser.parse_args()
 
-    if args.pileup:
-        codes = ffi.string(libbam.plp_bases).decode()
-        print("pos\t", end="")
-        print("\t".join(x for x in codes))
-        positions, counts = pileup(
-            args.bam, args.chrom, args.start, args.end, mod_base=args.mod_base)
-        for p, row in zip(positions, counts):
-            print(p, end='\t')
-            print("\t".join(str(x) for x in row))
-
-    else:
-        from collections import Counter
-        counts = Counter()
-        with ModBam(args.bam, args.chrom, args.start, args.end) as bam:
-            for read in bam.reads():
+    with ModBam(args.bam) as bam:
+        if args.pileup:
+            codes = ffi.string(libbam.plp_bases).decode()
+            print("pos\t", end="")
+            print("\t".join(x for x in codes))
+            positions, counts = bam.pileup(
+                args.chrom, args.start, args.end, mod_base=args.mod_base)
+            for p, row in zip(positions, counts):
+                print(p, end='\t')
+                print("\t".join(str(x) for x in row))
+        else:
+            counts = collections.Counter()
+            for read in bam.reads(args.chrom, args.start, args.end):
                 for pos_mod in read.mod_sites:
                     counts[pos_mod.qual] += 1
-        for k in sorted(counts.keys()):
-            print(k, counts[k])
+            for k in sorted(counts.keys()):
+                print(k, counts[k])

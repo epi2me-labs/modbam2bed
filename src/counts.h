@@ -97,7 +97,7 @@ void print_bedmethyl(plp_data pileup, char *ref, int rstart, bool extended, char
  *
  */
 plp_data calculate_pileup(
-    const char **bam_file, const char *chr, int start, int end,
+    const set_fsets *fsets, const char *chr, int start, int end,
     const char *read_group, const char tag_name[2], const int tag_value,
     int lowthreshold, int highthreshold, char mod_base);
 

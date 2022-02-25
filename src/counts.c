@@ -209,17 +209,20 @@ int pileup_cd_destroy(void *data, const bam1_t *b, bam_pileup_cd *cd) {
  *
  */
 plp_data calculate_pileup(
-        const char **bam_file, const char *chr, int start, int end,
+        const set_fsets *fsets, const char *chr, int start, int end,
         const char *read_group, const char tag_name[2], const int tag_value,
         int lowthreshold, int highthreshold, char mod_base) {
 
     // setup bam reading
-    int nfile = 0; for (; bam_file[nfile]; nfile++);
-    mplp_data **data = xalloc(nfile, sizeof(mplp_data*), "bam files");
+    size_t nfile = fsets->n;
+    mplp_data **data = xalloc(fsets->n, sizeof(mplp_data*), "bam files");
     for (size_t i = 0; i < nfile; ++i) {
         data[i] = create_bam_iter_data(
-            (const char *) bam_file[i], chr, start, end, read_group, tag_name, tag_value);
-        if (data[i] == NULL) return NULL;
+            fsets->fsets[i], chr, start, end, read_group, tag_name, tag_value);
+        if (data[i] == NULL) {
+            // TODO: cleanup
+            return NULL;
+        }
     }
 
     bam_mplp_t mplp = bam_mplp_init(nfile, read_bam, (void **)data);

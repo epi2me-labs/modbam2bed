@@ -17,9 +17,35 @@ typedef struct {
     const char *read_group;
 } mplp_data;
 
+
+typedef struct {
+    htsFile *fp;
+    hts_idx_t *idx;
+    sam_hdr_t *hdr;
+} bam_fset;
+
+typedef struct set_fsets {
+    bam_fset **fsets;
+    size_t n;
+} set_fsets;
+
+
+// Initialise BAM file, index and header structures
+bam_fset* create_bam_fset(const char* fname);
+
+// Destory BAM file, index and header structures
+void destroy_bam_fset(bam_fset* fset);
+
+// Initialise multiple BAM filesets
+set_fsets *create_filesets(const char **bams);
+
+// Destroy multiple BAM filesets
+void destroy_filesets(set_fsets *s);
+
+
 /** Set up a bam file for reading (filtered) records.
  *
- *  @param bam_file input aligment file.
+ *  @param bam_fset A BAM fileset from create_bam_fset
  *  @param chr bam target name.
  *  @param start start position of chr to consider.
  *  @param end end position of chr to consider.
@@ -31,7 +57,7 @@ typedef struct {
  *
  */
 mplp_data *create_bam_iter_data(
-    const char *bam_file, const char *chr, int start, int end,
+    const bam_fset* fset, const char *chr, int start, int end,
     const char *read_group, const char tag_name[2], const int tag_value);
 
 /** Clean up auxiliary bam reading data.

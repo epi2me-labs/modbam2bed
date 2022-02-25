@@ -11,6 +11,7 @@
 #include "htslib/faidx.h"
 #include "htslib/thread_pool.h"
 
+#include "bamiter.h"
 #include "common.h"
 #include "counts.h"
 #include "args.h"
@@ -26,10 +27,13 @@ typedef struct twarg {
 
 void *pileup_worker(void *arg) {
     twarg j = *(twarg *)arg;
+    set_fsets *files = create_filesets(j.args.bam);
+    if (files == NULL) { free(arg); return NULL; }
     plp_data pileup = calculate_pileup(
-        j.args.bam, j.chr, j.start, j.end,
+        files, j.chr, j.start, j.end,
         j.args.read_group, j.args.tag_name, j.args.tag_value,
         j.args.lowthreshold, j.args.highthreshold, j.args.mod_base.code);
+    destroy_filesets(files);
     free(arg);
     return pileup;
 }
@@ -47,6 +51,8 @@ void *pileup_worker(void *arg) {
 #ifdef NOTHREADS
 void process_region(arguments_t args, const char *chr, int start, int end, char *ref) {
     fprintf(stderr, "Processing: %s:%d-%d\n", chr, start, end);
+    set_fsets* files = create_filesets(j.args.bam);
+    if (files == NULL) return;
     plp_data pileup = calculate_pileup(
         args.bam, chr, start, end,
         args.read_group, args.tag_name, args.tag_value,

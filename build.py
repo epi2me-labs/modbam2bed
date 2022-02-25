@@ -19,9 +19,6 @@ ffibuilder.set_source("libmodbampy",
     libraries=libraries,
     library_dirs=library_dirs,
     include_dirs=[src_dir, 'htslib'],
-    #sources=[
-    #    os.path.join(src_dir, x)
-    #    for x in ('common.c', 'bamiter.c', 'counts.c', 'args.c')],
     extra_compile_args=['-std=c99', '-msse3', '-O3'],
     extra_objects=[
         'pymod.a',
@@ -42,8 +39,20 @@ cdef = ["""
     bam1_t *bam_init1();
     void bam_destroy1(bam1_t *b);
     typedef struct mplp_data {...;} mplp_data;
+
+    // opening bam with idx and hdr info
+    typedef struct { ...; } bam_fset;
+    bam_fset* create_bam_fset(char* fname);
+    void destroy_bam_fset(bam_fset* fset);
+    typedef struct set_fsets {
+        bam_fset **fsets;
+        size_t n;
+    } set_fsets;
+    set_fsets *create_filesets(const char **bams);
+    void destroy_filesets(set_fsets *s);
+
     mplp_data *create_bam_iter_data(
-        const char *bam_file, const char *chr, int start, int end,
+        const bam_fset* fset, const char *chr, int start, int end,
         const char *read_group, const char tag_name[2], const int tag_value);
     void destroy_bam_iter_data(mplp_data *data);
     // iterate a file
