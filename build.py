@@ -3,9 +3,15 @@ import os
 
 from cffi import FFI
 
-libraries=['m', 'z', 'lzma', 'bz2', 'pthread', 'curl', 'crypto']
-library_dirs=[]
+dir_path = os.path.dirname(os.path.realpath(__file__))
 src_dir='src'
+libraries=['m', 'lzma', 'bz2', 'pthread', 'curl', 'crypto']
+library_dirs=[]
+print("WITHDEFLATE:", os.getenv('WITHDEFLATE'))
+if os.getenv('WITHDEFLATE') == "1":
+    print("Using deflate")
+    libraries.append('deflate')
+    library_dirs.append(os.path.join(dir_path, 'libdeflate'))
 
 ffibuilder = FFI()
 ffibuilder.set_source("libmodbampy",

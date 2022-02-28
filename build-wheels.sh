@@ -2,6 +2,8 @@
 # Usage: ./build-wheels.sh <workdir> <pyminorversion1> <pyminorversion2> ...
 set -e -x
 
+PACKAGE_NAME=modbampy
+
 workdir=$1
 shift
 
@@ -19,7 +21,11 @@ yum install -y openssl-devel
 make && make install
 cd ..
 
-make htslib/libhts.a pymod.a
+export WITHDEFLATE=1
+LIBDEFLATE="${PWD}/libdeflate"
+LDFLAGS="-L${LIBDEFLATE}"
+
+make htslib/libhts.a
 mkdir -p wheelhouse
 
 echo "PYTHON VERSIONS AVAILABLE"
@@ -39,23 +45,24 @@ done
 
 
 # Bundle external shared libraries into the wheels
-for whl in "wheelhouse/${PACKAGE_FILE_NAME}"*.whl; do
-    auditwheel repair "${whl}" -w ./wheelhouse/
+export LD_LIBRARY_PATH=$PWD/libdeflate
+ls ${LD_LIBRARY_PATH}
+for whl in "wheelhouse/${PACKAGE_NAME}"*.whl; do
+    LD_LIBRARY_PATH=${LIBDEFLATE} auditwheel repair "${whl}" -w ./wheelhouse/
 done
+unset LD_LIBRARY_PATH
 
 
 ## Install packages
-if [[ "${DO_COUNT_TEST}" == "1" ]]; then
-    for minor in $@; do
-        if [[ "${minor}" == "8" || "${minor}" == "9" ]]; then
-            PYBIN="/opt/python/cp3${minor}-cp3${minor}/bin"
-        else
-            PYBIN="/opt/python/cp3${minor}-cp3${minor}m/bin"
-        fi
-        "${PYBIN}"/pip install -r requirements.txt 
-        "${PYBIN}"/pip install "${PACKAGE_NAME}" --no-index -f ./wheelhouse
-        "${PYBIN}"/medaka_counts --print medaka/test/data/test_reads.bam utg000001l:10000-10010
-    done
-fi
+for minor in $@; do
+    if [[ "${minor}" == "8" || "${minor}" == "9" ]]; then
+        PYBIN="/opt/python/cp3${minor}-cp3${minor}/bin"
+    else
+        PYBIN="/opt/python/cp3${minor}-cp3${minor}m/bin"
+    fi
+    "${PYBIN}"/pip install -r requirements.txt 
+    "${PYBIN}"/pip install "${PACKAGE_NAME}" --no-index -f ./wheelhouse
+    "${PYBIN}"/modbampy --pileup test_data/400ecoli.bam ecoli1 105000 105100
+done
 
-cd wheelhouse && ls | grep -v "${PACKAGE_FILE_NAME}.*manylinux" | xargs rm
+cd wheelhouse && ls | grep -v "${PACKAGE_NAME}.*manylinux" | xargs rm

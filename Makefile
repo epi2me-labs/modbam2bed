@@ -11,11 +11,24 @@ endif
 
 CC ?= gcc
 CFLAGS ?= -fpic -msse3 -O3 -std=c99
+DEFLATE ?= $(PWD)/libdeflate
 STATIC_HTSLIB ?= htslib/libhts.a
 EXTRA_CFLAGS ?=
 EXTRA_LDFLAGS ?=
 EXTRA_LIBS ?=
 HTS_CONF_ARGS ?=
+HTS_CONF_ENV ?= CFLAGS="$(CFLAGS) $(EXTRA_CFLAGS)"
+
+WITHDEFLATE ?= 
+DEFLATEREQ =
+ifeq ($(WITHDEFLATE), 1)
+CFLAGS += -I$(DEFLATE) -L$(DEFLATE)
+HTS_CONF_ARGS += --with-libdeflate
+HTS_CONF_ENV += LDFLAGS="-L$(DEFLATE)"
+EXTRA_LIBS += -ldeflate
+DEFLATEREQ = libdeflate/libdeflate.so.0
+endif
+
 NOTHREADS ?=
 ifeq ($(NOTHREADS), 1)
 	CFLAGS += -DNOTHREADS
@@ -27,13 +40,17 @@ VALGRIND ?= valgrind
 .PHONY: default
 default: modbam2bed
 
+libdeflate/libdeflate.so.0:
+	@echo Compiling $(@F)
+	cd libdeflate && make
+	
 
-htslib/libhts.a:
+htslib/libhts.a: $(DEFLATEREQ)
 	@echo Compiling $(@F)
 	cd htslib/ \
 		&& autoheader \
 		&& autoconf \
-		&& CFLAGS="$(CFLAGS) $(EXTRA_CFLAGS)" ./configure $(HTS_CONF_ARGS) \
+		&& $(HTS_CONF_ENV) ./configure $(HTS_CONF_ARGS) \
 		&& make -j 4
 
 
@@ -85,7 +102,7 @@ $(VENV)/bin/activate:
 .PHONY: python
 python: htslib/libhts.a pymod.a $(VENV)/bin/activate
 	${IN_VENV} && pip install -r requirements.txt
-	${IN_VENV} && LDFLAGS=$(EXTRA_LDFLAGS) pip install -e .
+	${IN_VENV} && WITHDEFLATE=$(WITHDEFLATE) LDFLAGS=$(EXTRA_LDFLAGS) pip install -e .
 
 .PHONY: clean_python
 clean_python: clean_obj
@@ -114,5 +131,5 @@ sdist: pypi_build/bin/activate
 
 
 .PHONY: wheels
-wheels: clean 
+wheels: clean clean_python 
 	docker run -v `pwd`:/io quay.io/pypa/manylinux2010_x86_64 /io/build-wheels.sh /io 6 7 8
