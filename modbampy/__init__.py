@@ -8,7 +8,7 @@ import numpy as np
 import libmodbampy
 
 # remember to bump version in src/version.h too
-__version__ = "0.4.6"
+__version__ = "0.5.0"
 ffi = libmodbampy.ffi
 libbam = libmodbampy.lib
 
@@ -40,8 +40,7 @@ def _tidy_args(read_group, tag_name, tag_value):
 class ModBam:
     """A minimal class to iterate over a bam."""
 
-    def __init__(
-            self, bam, read_group=None, tag_name=None, tag_value=None):
+    def __init__(self, bam):
         """Open a BAM file.
 
         :param bam: BAM file to open.

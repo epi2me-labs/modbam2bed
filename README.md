@@ -148,9 +148,9 @@ over reads in a BAM file and report modification sites:
 
 ```
 from modbampy import ModBam
-with ModBam(args.bam, args.chrom, args.start, args.end) as bam:
+with ModBam(args.bam) as bam:
     for read in bam.reads():
-        for pos_mod in read.mod_sites():
+        for pos_mod in read.mod_sites(args.chrom, args.start, args.end):
             print(*pos_mod)
 ```
 
@@ -165,13 +165,15 @@ Each line of the above reports the
 * modified base,
 * modified-base score (scaled to 0-255).
 
-A second function is provided which mimics the couting procedure implemented in
+A second method is provided which mimics the couting procedure implemented in
 `modbam2bed`:
 
 ```
-positions, counts = pileup(
-    bam, chrom, start, end,
-    low_threshold=0.33, high_threshold=0.66, mod_base="m")
+from modbampy import ModBam
+with ModBam(args.bam) as bam:
+    positions, counts = bam.pileup(
+        args.chrom, args.start, args.end
+        low_threshold=0.33, high_threshold=0.66, mod_base="m")
 ```
 
 The result is two [numpy](https://numpy.org/) arrays. The first indicates the reference
