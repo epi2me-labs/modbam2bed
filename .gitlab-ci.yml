@@ -82,8 +82,14 @@ conda-mac:
 bld:py-sdist:
     stage: prerelease
     script:
+        - *prep-image
         - *minimal-python
         - make sdist
+        - cd dist
+        - python3 -m venv venv
+        - . venv/bin/activate
+        - pip install --upgrade pip
+        - pip install *.tar.gz
     artifacts:
         paths:
             - dist/*.tar.gz

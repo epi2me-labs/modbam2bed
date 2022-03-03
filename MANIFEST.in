@@ -6,8 +6,14 @@ include requirements.txt
 include build.py
 include Makefile
 graft htslib*
-prune htslib/test
+prune htslib/test/
+include htslib/test/*.c
+include htslib/test/*.h
+include htslib/test/fuzz/*.c
+include htslib/test/fuzz/*.h
 prune htslib/htscodecs/tests
+include htslib/htscodecs/tests**/*.c
+include htslib/htscodecs/tests**/*.h
 graft images
 prune build
 prune docs
