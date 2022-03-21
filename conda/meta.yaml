@@ -8,16 +8,15 @@ source:
 build:
     number: {{ environ.get('CONDA_PKG_BUILD', 0) }}
 
-# libdeflate pinning to match bioconda::pysam
 requirements:
     build:
         - {{ compiler('c') }}
     host:
         - argp-standalone # [osx]
         - binutils # [not osx]
-        - bioconda::htslib
+        - bioconda::htslib>=1.14
     run:
-        - bioconda::htslib
+        - bioconda::htslib>=1.14
 
 test:
     commands:
