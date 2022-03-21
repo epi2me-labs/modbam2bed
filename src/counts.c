@@ -82,6 +82,100 @@ void print_pileup_data(plp_data pileup){
 }
 
 
+output_files open_bed_files(char* prefix, bool cpg, bool chh, bool chg) {
+    output_files files = xalloc(1, sizeof(_output_files), "output_files");
+    // default to stdout for zero or one filters
+    files->multi = (int)cpg + chh + chg > 1;
+    files->take_all = (int)cpg + chh + chg == 0;
+    files->fcpg = stdout;
+    files->fchh = stdout;
+    files->fchg = stdout;
+    files->cpg = cpg;
+    files->chh = chh;
+    files->chg = chg;
+    // use distinct files if more than one filter
+    if (files->multi) {
+        char* fname = xalloc(strlen(prefix) + 9, sizeof(char), "fname");
+        if (cpg) {
+            strcpy(fname, prefix); strcat(fname, ".cpg.bed");
+            files->fcpg = fopen(fname, "w");
+        }
+        if (chh) {
+            strcpy(fname, prefix); strcat(fname, ".chh.bed");
+            files->fchh = fopen(fname, "w");
+        }
+        if (chg) {
+            strcpy(fname, prefix); strcat(fname, ".chg.bed");
+            files->fchg = fopen(fname, "w");
+        }
+        free(fname);
+    }
+    return files;
+}
+
+void close_bed_files(output_files files) {
+   if (files->fcpg != stdout) { fclose(files->fcpg); }
+   if (files->fchh != stdout) { fclose(files->fchh); }
+   if (files->fchg != stdout) { fclose(files->fchg); }
+   free(files);
+}
+
+// checks for following (preceding for rev strand) bases for motifs
+
+// CpG
+bool inline is_cpg_fwd(size_t rpos, int rlen, char* ref){
+    return rpos < rlen - 1 && ref[rpos] == 'C' && ref[rpos + 1] == 'G';
+}
+bool inline is_cpg_rev(size_t rpos, int rlen, char* ref){
+    return rpos != 0 && ref[rpos] == 'G' && ref[rpos - 1] == 'C';
+}
+// CHN
+bool inline _is_chn_fwd(size_t rpos, int rlen, char* ref) {
+    bool is_chn = false;
+    if (rpos < rlen - 2 && ref[rpos] == 'C') {
+        char b = ref[rpos + 1];
+        // these are all not G
+        is_chn = (b == 'A' || b == 'C' || b == 'T' || b == 'M' || b == 'W' || b == 'Y');
+    }
+    return is_chn;
+}
+bool inline _is_chn_rev(size_t rpos, int rlen, char* ref) {
+    bool is_chn = false;
+    if (rpos > 1 && ref[rpos] == 'G') {
+        char b = ref[rpos - 1];
+        // these are all not C
+        is_chn = (b == 'A' || b == 'G' || b == 'T' || b == 'R' || b == 'K' || b == 'D');
+    }
+    return is_chn;
+}
+// CHH
+bool inline is_chh_fwd(size_t rpos, int rlen, char* ref) {
+    bool is_chh = _is_chn_fwd(rpos, rlen, ref);
+    if (is_chh) { 
+        char b = ref[rpos + 2];
+        // these are all not G
+        is_chh = (b == 'A' || b == 'C' || b == 'T' || b == 'M' || b == 'W' || b == 'Y');
+    }
+    return is_chh;
+}
+bool inline is_chh_rev(size_t rpos, int rlen, char* ref) {
+    bool is_chh = _is_chn_rev(rpos, rlen, ref);
+    if (is_chh) {
+        char b = ref[rpos - 2];
+        // these are all not C
+        is_chh = (b == 'A' || b == 'G' || b == 'T' || b == 'R' || b == 'K' || b == 'D');
+    }
+    return is_chh;
+}
+// CHG
+bool inline is_chg_fwd(size_t rpos, int rlen, char* ref) {
+    return _is_chn_fwd(rpos, rlen, ref) && ref[rpos + 2] == 'G';
+}
+bool inline is_chg_rev(size_t rpos, int rlen, char* ref) {
+    return _is_chn_rev(rpos, rlen, ref) && ref[rpos - 2] == 'C';
+}
+
+
 /** Prints a pileup data structure as bedmethyl file
  *
  *  @param pileup a pileup counts structure.
@@ -90,34 +184,37 @@ void print_pileup_data(plp_data pileup){
  *  @param extended whether to include counts of canonical, modified and filtered bases.
  *  @param feature name to use for feature column of BED (e.g. 5mC).
  *  @param canon_base canonical base to match.
- *  @param cpg filter output to only CpG sites.
+ *  @param cpg filter output to CpG sites.
+ *  @param chh filter output to CHH sites.
+ *  @param chg filter output to CHG sites.
  *  @returns void
  *
  */
 void print_bedmethyl(
         plp_data pileup, char *ref, int rstart, bool extended,
-        char* feature, char canon_base, bool cpg){
+        char* feature, char canon_base, output_files bed_files){
     // ecoli1  100718  100719  .       4       +       100718  100719  0,0,0   3       0
     
     // this is a bit naff, we should introspect these indices, or have them
     // as data in the header.
-    const size_t numbases = 7;
-    size_t fwdbases[] = {4,5,6,7,9,11,13};
-    size_t revbases[] = {0,1,2,3,8,10,12};
+    static const size_t numbases = 7;
+    static const size_t fwdbases[] = {4,5,6,7,9,11,13};
+    static const size_t revbases[] = {0,1,2,3,8,10,12};
     size_t ci, mi, fi;
     size_t *bases;
     bool isrev;
     char rc_canon_base = ' ';
     size_t cif, cir;
+
     if (canon_base == 'A') {cif=4; cir=3; rc_canon_base = 'T';}
     else if (canon_base == 'C') {cif=5; cir=2; rc_canon_base = 'G';}
     else if (canon_base == 'G') {cif=6; cir=1; rc_canon_base = 'C';}
     else if (canon_base == 'T') {cif=7; cir=0; rc_canon_base = 'A';}
     else {fprintf(stderr, "ERROR: Unrecognised canonical base: '%c'\n", canon_base); exit(1);}
-    if (canon_base != 'C' && cpg) {
-        fprintf(stderr, "ERROR: CpG filtering cannot be used when canonical base is not 'C'.\n");
-        exit(1);
-    }
+    //if (canon_base != 'C' && (cpg || chh || chg)) {
+    //    fprintf(stderr, "ERROR: CpG filtering cannot be used when canonical base is not 'C'.\n");
+    //    exit(1);
+    //}
 
     int rlen = strlen(ref);
 
@@ -125,19 +222,29 @@ void print_bedmethyl(
         size_t pos = pileup->major[i];
         size_t rpos = pos - rstart;
         char rbase = ref[rpos];
-        if (rbase == canon_base){
-            if (cpg && rpos < rlen - 1 && ref[rpos + 1] != 'G') {
-                continue;
+        bool is_cpg = false;
+        bool is_chh = false;
+        bool is_chg = false;
+        if (rbase == canon_base) {
+            if (!bed_files->take_all) {
+                if (!(
+                       (bed_files->cpg && (is_cpg = is_cpg_fwd(rpos, rlen, ref)))
+                    || (bed_files->chh && (is_chh = is_chh_fwd(rpos, rlen, ref)))
+                    || (bed_files->chg && (is_chg = is_chg_fwd(rpos, rlen, ref)))
+                    ) ) { continue; }
             }
             isrev = 0; mi = fwd_mod; fi = fwd_filt; ci = cif;
-            bases = fwdbases;
+            bases = (size_t *) fwdbases;
         } else if (rbase == rc_canon_base) {
-            // e.g. G on rev strand is C in reads
-            if (cpg && rpos != 0 && ref[rpos - 1] != 'C') {
-                continue;
+            if (!bed_files->take_all) {
+                if (!(
+                       (bed_files->cpg && (is_cpg = is_cpg_rev(rpos, rlen, ref)))
+                    || (bed_files->chh && (is_chh = is_chh_rev(rpos, rlen, ref)))
+                    || (bed_files->chg && (is_chg = is_chg_rev(rpos, rlen, ref)))
+                    ) ) { continue; }
             }
             isrev = 1; mi = rev_mod; fi = rev_filt; ci = cir;
-            bases = revbases;
+            bases = (size_t *)revbases;
         }
         else {
             continue;
@@ -156,12 +263,21 @@ void print_bedmethyl(
         size_t md = pileup->matrix[i * featlen + mi];
         size_t fd = pileup->matrix[i * featlen + fi];
         size_t tot = cd + md;
+        if (tot == 0) continue;
         float meth = tot == 0 ? 0 : (100.0f * md) / tot;
         // column 5: "Score from 0-1000. Capped number of reads"
         // lets go with proportion of (mod or canon):(mod or canon or filtered)
         size_t score = depth == 0 ? 0 : (1000 * tot) / depth;
+       
+        // default to stdout 
+        FILE* fout = stdout;
+        if (bed_files->multi) {
+            if (is_cpg) { fout = bed_files->fcpg; }
+            else if (is_chh) { fout = bed_files->fchh; }
+            else if (is_chg) { fout = bed_files->fchg; }
+        }
 
-        fprintf(stdout,
+        fprintf(fout,
             "%s\t%zu\t%zu\t"
             "%s\t%zu\t%c\t"
             "%zu\t%zu\t0,0,0\t%zu\t%.2f",
@@ -170,9 +286,9 @@ void print_bedmethyl(
             pos, pos + 1, depth, meth
         );
         if (extended) {
-            fprintf(stdout, "\t%zu\t%zu\t%zu\n", cd, md, fd);
+            fprintf(fout, "\t%zu\t%zu\t%zu\n", cd, md, fd);
         } else {
-            fprintf(stdout, "\n");
+            fprintf(fout, "\n");
         }
     }
 }

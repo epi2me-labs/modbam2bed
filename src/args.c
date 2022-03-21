@@ -23,7 +23,9 @@ static char doc[] =
  and deletions. Column 11 is the percentage of reference-base calls identified\
  as being modified (as a proportion of those confidently determined as\
  canonical or modified). Extended output (-e option) can give raw counts\
- of canonical, modified, and undetermined bases for completeness.";
+ of canonical, modified, and undetermined bases for completeness.\
+ \n\nOutput is to standard output unless multiple motif filters are specified.\
+ In such cases the --prefix option controls the output file name.";
 static char args_doc[] = "<reference.fasta> <reads.bam> [<reads.bam> ...]";
 static struct argp_option options[] = {
     {0, 0, 0, 0,
@@ -36,6 +38,8 @@ static struct argp_option options[] = {
         "Modified base of interest, one of: 5mC, 5hmC, 5fC, 5caC, 5hmU, 5fU, 5caU, 6mA, 5oxoG, Xao."},
     {"threads", 't', "THREADS", 0,
         "Number of threads for BAM processing."},
+    {"prefix", 'p', "PREFIX", 0,
+        "Output file prefix. Only used when multiple output filters are given."},
     {0, 0, 0, 0,
         "Base filtering options:"},
     {"canon_threshold", 'a', "THRESHOLD", 0,
@@ -44,6 +48,10 @@ static struct argp_option options[] = {
         "Bases with mod. probability > THRESHOLD are counted as modified.", 2},
     {"cpg", 'c', 0, 0,
         "Output records filtered to CpG sites.", 2},
+    {"chh", 0x400, 0, 0,
+        "Output records filtered to CHH sites.", 2},
+    {"chg", 0x500, 0, 0,
+        "Output records filtered to CHG sites.", 2},
     {"mask", 'k', 0, 0,
         "Respect soft-masking in reference file.", 2},
     {0, 0, 0, 0,
@@ -104,6 +112,12 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state) {
         case 'c':
             arguments->cpg = true;
             break;
+        case 0x400:
+            arguments->chh = true;
+            break;
+        case 0x500:
+            arguments->chg = true;
+            break;
         case 'k':
             arguments->mask = true;
             break;
@@ -134,6 +148,9 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state) {
             break;
         case 't':
             arguments->threads = atoi(arg);
+            break;
+        case 'p':
+            arguments->prefix = arg;
             break;
         case ARGP_KEY_NO_ARGS:
             argp_usage (state);
@@ -180,16 +197,22 @@ arguments_t parse_arguments(int argc, char** argv) {
     args.tag_name[0] = '\0';
     args.tag_value = -1;
     args.cpg = false;
+    args.chh = false;
+    args.chg = false;
     args.mask = false;
     args.extended = false;
     args.threads = 1;
+    args.prefix = "mod-counts";
     argp_parse(&argp, argc, argv, 0, 0, &args);
     // allow CpG only for C!
-    if(args.cpg) {
+    if (args.cpg || args.chh || args.chg) {
         if (args.mod_base.base != 'C') {
-            fprintf(stderr, "ERROR: Option '--cpg' can only be used with cytosine modifications.");
+            fprintf(stderr, "ERROR: Options '--cpg/--chh/--chg' can only be used with cytosine modifications.");
             exit(1);
         }; 
+    }
+    if ((int)args.cpg + args.chh + args.chh) {
+        fprintf(stderr, "INFO: Multiple filters given, output will be to files named e.g. '%s.cpg.bed'.\n", args.prefix);
     }
     if (tag_items % 2 > 0) {
         fprintf(stderr, "ERROR: Both or neither of --tag_name and --tag_value must be given.\n");

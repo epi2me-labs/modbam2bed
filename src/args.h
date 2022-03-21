@@ -13,12 +13,15 @@ typedef struct arguments {
     char tag_name[2];
     int tag_value;
     mod_base mod_base;
-    bool cpg;
     bool mask;
+    bool cpg;
+    bool chh;
+    bool chg;
     bool extended;
     int threads;
     int lowthreshold;
     int highthreshold;
+    char* prefix;
 } arguments_t;
 
 arguments_t parse_arguments(int argc, char** argv);
