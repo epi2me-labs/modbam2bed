@@ -51,6 +51,13 @@ bld:program:
         - make modbam2bed
         - ./modbam2bed --help
         - make mem_check
+
+
+bld:api-test:
+    stage: test
+    script:
+        - *prep-image
+        - *minimal-python
         - make test_api
 
 
