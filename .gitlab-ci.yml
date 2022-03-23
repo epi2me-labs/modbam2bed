@@ -53,6 +53,14 @@ bld:program:
         - make mem_check
 
 
+bld:api-test:
+    stage: test
+    script:
+        - *prep-image
+        - *minimal-python
+        - make test_api
+
+
 deploy-checks:
     stage: prerelease
     script:

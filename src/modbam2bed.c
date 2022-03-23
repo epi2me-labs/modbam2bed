@@ -49,7 +49,7 @@ void *pileup_worker(void *arg) {
  *
  */
 #ifdef NOTHREADS
-void process_region(arguments_t args, const char *chr, int start, int end, char *ref) {
+void process_region(arguments_t args, const char *chr, int start, int end, char *ref, output_files bed_files) {
     fprintf(stderr, "Processing: %s:%d-%d\n", chr, start, end);
     set_fsets* files = create_filesets(j.args.bam);
     if (files == NULL) return;
@@ -58,11 +58,11 @@ void process_region(arguments_t args, const char *chr, int start, int end, char 
         args.read_group, args.tag_name, args.tag_value,
         args.lowthreshold, args.highthreshold, args.mod_base.code);
     if (pileup == NULL) return;
-    print_bedmethyl(pileup, ref, 0, args.extended, args.mod_base.abbrev, args.mod_base.base, args.cpg);
+    print_bedmethyl(pileup, ref, 0, args.extended, args.mod_base.abbrev, args.mod_base.base, bed_files);
     destroy_plp_data(pileup);
 }
 #else
-void process_region(arguments_t args, const char *chr, int start, int end, char *ref) {
+void process_region(arguments_t args, const char *chr, int start, int end, char *ref, output_files bed_files) {
     fprintf(stderr, "Processing: %s:%d-%d\n", chr, start, end);
     // create thread pool
     hts_tpool *p = hts_tpool_init(args.threads);
@@ -83,7 +83,7 @@ void process_region(arguments_t args, const char *chr, int start, int end, char 
                 if (res != NULL) {
                     print_bedmethyl(
                         res, ref, 0,
-                        args.extended, args.mod_base.abbrev, args.mod_base.base, args.cpg);
+                        args.extended, args.mod_base.abbrev, args.mod_base.base, bed_files);
                     destroy_plp_data(res);
                     done++;
                     fprintf(stderr, "\r%.1f %%", 100*done/nregs);
@@ -100,7 +100,7 @@ void process_region(arguments_t args, const char *chr, int start, int end, char 
         if (res != NULL) {
             print_bedmethyl(
                 res, ref, 0,
-                args.extended, args.mod_base.abbrev, args.mod_base.base, args.cpg);
+                args.extended, args.mod_base.abbrev, args.mod_base.base, bed_files);
             destroy_plp_data(res);
             done++;
             fprintf(stderr, "\r%.1f %%", 100*done/nregs);
@@ -114,8 +114,6 @@ void process_region(arguments_t args, const char *chr, int start, int end, char 
     hts_tpool_destroy(p);
 }
 #endif
-
-
 
 
 int main(int argc, char *argv[]) {
@@ -147,6 +145,10 @@ int main(int argc, char *argv[]) {
     }
 #endif
 
+    // open output files, sort out filter options
+    output_files bed_files = open_bed_files(
+        args.prefix, args.cpg, args.chh, args.chg);
+
     // load ref sequence
     faidx_t *fai = fai_load(args.ref);
     if (fai == NULL) {
@@ -166,7 +168,7 @@ int main(int argc, char *argv[]) {
                 for (size_t i=0; i<alen; ++i){ ref[i] = toupper(ref[i]); }
             }
             fprintf(stderr, "Fetched %s, %i %i\n", chr, len, alen);
-            process_region(args, chr, 0, len, ref);
+            process_region(args, chr, 0, len, ref, bed_files);
             free(ref);
         }
     } else {
@@ -193,11 +195,12 @@ int main(int argc, char *argv[]) {
             for (size_t i=0; i<len; ++i){ ref[i] = toupper(ref[i]); }
         }
         end = min(end, len);
-        process_region(args, chr, start, end, ref);
+        process_region(args, chr, start, end, ref, bed_files);
 
         free(chr);
         free(ref);
     }
+    close_bed_files(bed_files);
     fai_destroy(fai);
     clock_t end = clock();
     fprintf(stderr, "Total time: %fs\n", (double)(end - begin) / CLOCKS_PER_SEC);

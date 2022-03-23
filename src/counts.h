@@ -13,6 +13,35 @@ typedef struct _plp_data {
 } _plp_data;
 typedef _plp_data *plp_data;
 
+// files open for writing outputs
+typedef struct _output_files {
+    bool multi;
+    bool take_all;
+    bool cpg;
+    bool chh;
+    bool chg;
+    FILE *fcpg;
+    FILE *fchh;
+    FILE *fchg;
+} _output_files;
+typedef _output_files *output_files;
+
+output_files open_bed_files(char* prefix, bool cpg, bool chh, bool chg);
+void close_bed_files(output_files);
+
+// Check sequences for motifs
+// CpG
+bool extern inline is_cpg_fwd(size_t rpos, int rlen, char* ref);
+bool extern inline is_cpg_rev(size_t rpos, int rlen, char* ref);
+// CHN
+bool extern inline _is_chn_fwd(size_t rpos, int rlen, char* ref);
+bool extern inline _is_chn_rev(size_t rpos, int rlen, char* ref);
+// CHH
+bool extern inline is_chh_fwd(size_t rpos, int rlen, char* ref);
+bool extern inline is_chh_rev(size_t rpos, int rlen, char* ref);
+// CHG
+bool extern inline is_chg_fwd(size_t rpos, int rlen, char* ref);
+bool extern inline is_chg_rev(size_t rpos, int rlen, char* ref);
 
 // medaka-style base encoding - augmented with (a) modified base counts
 static const char plp_bases[] = "acgtACGTdDmMfF";  // f for "filtered"
@@ -72,11 +101,11 @@ void print_pileup_data(plp_data pileup);
  *  @param extended whether to include counts of canonical, modified and filtered bases.
  *  @param feature name to use for feature column of BED (e.g. 5mC).
  *  @param canon_base canonical base to match.
- *  @param cpg filter output to only CpG sites.
+ *  @param bed_files output file handles (and filters).
  *  @returns void
  *
  */
-void print_bedmethyl(plp_data pileup, char *ref, int rstart, bool extended, char *feature, char canon_base, bool cpg);
+void print_bedmethyl(plp_data pileup, char *ref, int rstart, bool extended, char *feature, char canon_base, output_files bed_files);
 
 
 /** Generates base counts from a region of a bam.
