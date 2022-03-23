@@ -29,6 +29,20 @@ typedef _output_files *output_files;
 output_files open_bed_files(char* prefix, bool cpg, bool chh, bool chg);
 void close_bed_files(output_files);
 
+// Check sequences for motifs
+// CpG
+bool extern inline is_cpg_fwd(size_t rpos, int rlen, char* ref);
+bool extern inline is_cpg_rev(size_t rpos, int rlen, char* ref);
+// CHN
+bool extern inline _is_chn_fwd(size_t rpos, int rlen, char* ref);
+bool extern inline _is_chn_rev(size_t rpos, int rlen, char* ref);
+// CHH
+bool extern inline is_chh_fwd(size_t rpos, int rlen, char* ref);
+bool extern inline is_chh_rev(size_t rpos, int rlen, char* ref);
+// CHG
+bool extern inline is_chg_fwd(size_t rpos, int rlen, char* ref);
+bool extern inline is_chg_rev(size_t rpos, int rlen, char* ref);
+
 // medaka-style base encoding - augmented with (a) modified base counts
 static const char plp_bases[] = "acgtACGTdDmMfF";  // f for "filtered"
 static const size_t featlen = 14; // len of the above

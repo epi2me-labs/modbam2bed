@@ -87,6 +87,11 @@ mem_check: modbam2bed
 		./modbam2bed -b 0.66 -a 0.33 -t 2 -r ecoli1 test_data/ecoli.fasta.gz test_data/400ecoli.bam test_data/400ecoli.bam > /dev/null
 
 
+.PHONY: test_api
+test_api: python
+	${IN_VENV} && pip install pytest
+	${IN_VENV} && pytest test --doctest-modules
+
 ### Python
 
 PYTHON ?= python3

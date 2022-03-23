@@ -120,61 +120,69 @@ void close_bed_files(output_files files) {
    free(files);
 }
 
-// checks for following (preceding for rev strand) bases for motifs
+
+// Check sequences for motifs
 
 // CpG
-bool inline is_cpg_fwd(size_t rpos, int rlen, char* ref){
+bool extern inline is_cpg_fwd(size_t rpos, int rlen, char* ref){
     return rpos < rlen - 1 && ref[rpos] == 'C' && ref[rpos + 1] == 'G';
 }
-bool inline is_cpg_rev(size_t rpos, int rlen, char* ref){
+bool extern inline is_cpg_rev(size_t rpos, int rlen, char* ref){
     return rpos != 0 && ref[rpos] == 'G' && ref[rpos - 1] == 'C';
 }
 // CHN
-bool inline _is_chn_fwd(size_t rpos, int rlen, char* ref) {
+bool extern inline _is_chn_fwd(size_t rpos, int rlen, char* ref) {
     bool is_chn = false;
     if (rpos < rlen - 2 && ref[rpos] == 'C') {
         char b = ref[rpos + 1];
         // these are all not G
-        is_chn = (b == 'A' || b == 'C' || b == 'T' || b == 'M' || b == 'W' || b == 'Y');
+        is_chn = (b == 'A' || b == 'C' || b == 'T' || b == 'M' || b == 'W' || b == 'Y' || b == 'H');
     }
     return is_chn;
 }
-bool inline _is_chn_rev(size_t rpos, int rlen, char* ref) {
+bool extern inline _is_chn_rev(size_t rpos, int rlen, char* ref) {
     bool is_chn = false;
     if (rpos > 1 && ref[rpos] == 'G') {
         char b = ref[rpos - 1];
         // these are all not C
-        is_chn = (b == 'A' || b == 'G' || b == 'T' || b == 'R' || b == 'K' || b == 'D');
+        is_chn = (b == 'A' || b == 'G' || b == 'T' || b == 'R' || b == 'W' || b == 'K' || b == 'D');
     }
     return is_chn;
 }
 // CHH
-bool inline is_chh_fwd(size_t rpos, int rlen, char* ref) {
+bool extern inline is_chh_fwd(size_t rpos, int rlen, char* ref) {
     bool is_chh = _is_chn_fwd(rpos, rlen, ref);
     if (is_chh) { 
         char b = ref[rpos + 2];
         // these are all not G
-        is_chh = (b == 'A' || b == 'C' || b == 'T' || b == 'M' || b == 'W' || b == 'Y');
+        is_chh = (b == 'A' || b == 'C' || b == 'T' || b == 'M' || b == 'W' || b == 'Y' || b == 'H');
     }
     return is_chh;
 }
-bool inline is_chh_rev(size_t rpos, int rlen, char* ref) {
+bool extern inline is_chh_rev(size_t rpos, int rlen, char* ref) {
     bool is_chh = _is_chn_rev(rpos, rlen, ref);
     if (is_chh) {
         char b = ref[rpos - 2];
         // these are all not C
-        is_chh = (b == 'A' || b == 'G' || b == 'T' || b == 'R' || b == 'K' || b == 'D');
+        is_chh = (b == 'A' || b == 'G' || b == 'T' || b == 'R' || b == 'W' || b == 'K' || b == 'D');
     }
     return is_chh;
 }
 // CHG
-bool inline is_chg_fwd(size_t rpos, int rlen, char* ref) {
-    return _is_chn_fwd(rpos, rlen, ref) && ref[rpos + 2] == 'G';
+bool extern inline is_chg_fwd(size_t rpos, int rlen, char* ref) {
+    bool is_chg = _is_chn_fwd(rpos, rlen, ref);
+    if (is_chg) {
+        is_chg = ref[rpos + 2] == 'G';
+    }
+    return is_chg;
 }
-bool inline is_chg_rev(size_t rpos, int rlen, char* ref) {
-    return _is_chn_rev(rpos, rlen, ref) && ref[rpos - 2] == 'C';
+bool extern inline is_chg_rev(size_t rpos, int rlen, char* ref) {
+    bool is_chg = _is_chn_rev(rpos, rlen, ref);
+    if (is_chg) {
+        is_chg = ref[rpos - 2] == 'C';
+    }
+    return is_chg;
 }
-
 
 /** Prints a pileup data structure as bedmethyl file
  *
