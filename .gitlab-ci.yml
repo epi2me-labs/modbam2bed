@@ -51,6 +51,7 @@ bld:program:
         - make modbam2bed
         - ./modbam2bed --help
         - make mem_check
+        - make test_api
 
 
 deploy-checks:
