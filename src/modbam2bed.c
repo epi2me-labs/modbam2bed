@@ -32,7 +32,8 @@ void *pileup_worker(void *arg) {
     plp_data pileup = calculate_pileup(
         files, j.chr, j.start, j.end,
         j.args.read_group, j.args.tag_name, j.args.tag_value,
-        j.args.lowthreshold, j.args.highthreshold, j.args.mod_base.code);
+        j.args.lowthreshold, j.args.highthreshold, j.args.mod_base.code,
+        j.args.hts_maxcnt);
     destroy_filesets(files);
     free(arg);
     return pileup;
@@ -56,7 +57,8 @@ void process_region(arguments_t args, const char *chr, int start, int end, char 
     plp_data pileup = calculate_pileup(
         args.bam, chr, start, end,
         args.read_group, args.tag_name, args.tag_value,
-        args.lowthreshold, args.highthreshold, args.mod_base.code);
+        args.lowthreshold, args.highthreshold, args.mod_base.code,
+        args.hts_maxcnt);
     if (pileup == NULL) return;
     print_bedmethyl(pileup, ref, 0, args.extended, args.mod_base.abbrev, args.mod_base.base, bed_files);
     destroy_plp_data(pileup);

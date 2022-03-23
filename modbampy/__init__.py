@@ -14,7 +14,6 @@ libbam = libmodbampy.lib
 
 MAX_MODS = 256  # from htslib
 
-
 ModInfo = collections.namedtuple(
     'ModInfo', (
         'query_name', 'rpos', 'qpos', 'strand', 'mstrand',
@@ -89,7 +88,8 @@ class ModBam:
     def pileup(
             self, chrom, start, end,
             read_group=None, tag_name=None, tag_value=None,
-            low_threshold=0.33, high_threshold=0.66, mod_base="m"):
+            low_threshold=0.33, high_threshold=0.66, mod_base="m",
+            max_depth=None):
         """Create a base count matrix.
 
         :param chrom: reference sequence from BAM.
@@ -107,12 +107,16 @@ class ModBam:
         read_group, tag_name, tag_value = _tidy_args(
             read_group, tag_name, tag_value)
 
-        _f = ffi.new("bam_fset *[]", [self._bam_fset]);
+        if max_depth is None:
+            max_depth = libbam._INT_MAX
+
+        _f = ffi.new("bam_fset *[]", [self._bam_fset])
         fsets = ffi.new("set_fsets *", {"fsets": _f, "n": 1})
         plp_data = libbam.calculate_pileup(
             fsets, chrom.encode(), start, end,
             read_group, tag_name, tag_value,
-            low_threshold, high_threshold, mod_base.encode())
+            low_threshold, high_threshold, mod_base.encode(),
+            max_depth)
         # TODO: check for NULL
 
         # copy data to numpy, we could be more clever here an wrap

@@ -1,3 +1,4 @@
+#include <limits.h>
 #include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
@@ -56,6 +57,8 @@ static struct argp_option options[] = {
         "Respect soft-masking in reference file.", 2},
     {0, 0, 0, 0,
         "Read filtering options:"},
+    {"max_depth", 'd', "DEPTH", 0,
+        "Max. per-file depth; avoids excessive memory usage.", 3},
     {"read_group", 'g', "RG", 0,
         "Only process reads from given read group.", 3},
     {"tag_name", 0x100, "TN", 0,
@@ -126,6 +129,9 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state) {
             break;
         case 'g':
             arguments->read_group = arg;
+            break;
+        case 'd':
+            arguments->hts_maxcnt = atoi(arg);
             break;
         case 0x100:
             if (strlen(arg) > 2) {
@@ -203,6 +209,7 @@ arguments_t parse_arguments(int argc, char** argv) {
     args.extended = false;
     args.threads = 1;
     args.prefix = "mod-counts";
+    args.hts_maxcnt = INT_MAX;
     argp_parse(&argp, argc, argv, 0, 0, &args);
     // allow CpG only for C!
     if (args.cpg || args.chh || args.chg) {

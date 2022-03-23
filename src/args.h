@@ -22,6 +22,7 @@ typedef struct arguments {
     int lowthreshold;
     int highthreshold;
     char* prefix;
+    int hts_maxcnt;
 } arguments_t;
 
 arguments_t parse_arguments(int argc, char** argv);

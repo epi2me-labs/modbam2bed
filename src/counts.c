@@ -335,7 +335,7 @@ int pileup_cd_destroy(void *data, const bam1_t *b, bam_pileup_cd *cd) {
 plp_data calculate_pileup(
         const set_fsets *fsets, const char *chr, int start, int end,
         const char *read_group, const char tag_name[2], const int tag_value,
-        int lowthreshold, int highthreshold, char mod_base) {
+        int lowthreshold, int highthreshold, char mod_base, int max_depth) {
 
     // setup bam reading
     size_t nfile = fsets->n;
@@ -356,6 +356,7 @@ plp_data calculate_pileup(
 
     bam_mplp_constructor(mplp, pileup_cd_create);
     bam_mplp_destructor(mplp, pileup_cd_destroy);
+    bam_mplp_set_maxcnt(mplp, max_depth);
 
     // allocate output, not doing insertions here, so know maximum width
     plp_data pileup = create_plp_data(end - start, chr);

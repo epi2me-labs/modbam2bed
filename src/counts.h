@@ -2,6 +2,10 @@
 #define _MODBAMBED_COUNTS_H
 
 #include <stdbool.h>
+#include <limits.h>
+
+
+static const int _INT_MAX = INT_MAX;
 
 // medaka-style feature data
 typedef struct _plp_data {
@@ -120,6 +124,7 @@ void print_bedmethyl(plp_data pileup, char *ref, int rstart, bool extended, char
  *  @param lowthreshold highest probability to call base as canonical.
  *  @param highthreshold lowest probablity to call base as modified.
  *  @param mod_base BAM code for modified base to report. (e.g. h for 5hmC).
+ *  @param max_depth maximum depth of pileup.
  *  @returns a pileup data pointer.
  *
  *  The return value can be freed with destroy_plp_data.
@@ -128,6 +133,6 @@ void print_bedmethyl(plp_data pileup, char *ref, int rstart, bool extended, char
 plp_data calculate_pileup(
     const set_fsets *fsets, const char *chr, int start, int end,
     const char *read_group, const char tag_name[2], const int tag_value,
-    int lowthreshold, int highthreshold, char mod_base);
+    int lowthreshold, int highthreshold, char mod_base, int max_depth);
 
 #endif
