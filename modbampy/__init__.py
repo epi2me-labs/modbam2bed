@@ -8,7 +8,7 @@ import numpy as np
 import libmodbampy
 
 # remember to bump version in src/version.h too
-__version__ = "0.5.0"
+__version__ = "0.5.1"
 ffi = libmodbampy.ffi
 libbam = libmodbampy.lib
 
