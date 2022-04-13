@@ -48,6 +48,7 @@ libdeflate/libdeflate.so.0:
 htslib/libhts.a: $(DEFLATEREQ)
 	@echo Compiling $(@F)
 	cd htslib/ \
+		&& autoreconf -i \
 		&& autoheader \
 		&& autoconf \
 		&& $(HTS_CONF_ENV) ./configure $(HTS_CONF_ARGS) \
