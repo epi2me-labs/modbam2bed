@@ -283,7 +283,8 @@ class ModRead:
 def main():
     """Test entry point."""
     parser = argparse.ArgumentParser(
-        description="Modified base demo program.")
+        description="Modified base demo program.",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument(
         "bam", help="Indexed .bam file.")
     parser.add_argument(
@@ -300,6 +301,12 @@ def main():
     parser.add_argument(
         "--mod_base", default="m",
         help="Modified base to count during pileup.")
+    parser.add_argument(
+        "--low_threshold", type=float, default=0.33,
+        help="Lower threshold for filtering.")
+    parser.add_argument(
+        "--high_threshold", type=float, default=0.66,
+        help="High threshold for filtering.")
     args = parser.parse_args()
 
     with ModBam(args.bam) as bam:
@@ -308,7 +315,9 @@ def main():
             print("pos\t", end="")
             print("\t".join(x for x in codes))
             positions, counts = bam.pileup(
-                args.chrom, args.start, args.end, mod_base=args.mod_base)
+                args.chrom, args.start, args.end, mod_base=args.mod_base,
+                low_threshold=args.low_threshold,
+                high_threshold=args.high_threshold)
             for p, row in zip(positions, counts):
                 print(p, end='\t')
                 print("\t".join(str(x) for x in row))
