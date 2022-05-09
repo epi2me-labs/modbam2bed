@@ -124,6 +124,11 @@ bld:py-8:
     script:
         - ./build-wheels.sh . 8
 
+bld:py-9:
+    <<: *many-linux-def
+    script:
+        - ./build-wheels.sh . 9
+
 deploy:pypi:
     stage: release
     script:

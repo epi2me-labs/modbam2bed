@@ -150,7 +150,7 @@ over reads in a BAM file and report modification sites:
 from modbampy import ModBam
 with ModBam(args.bam) as bam:
     for read in bam.reads(args.chrom, args.start, args.end):
-        for pos_mod in read.mod_sites():
+        for pos_mod in read.mod_sites:
             print(*pos_mod)
 ```
 
