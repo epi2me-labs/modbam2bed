@@ -40,8 +40,31 @@ cdef = ["""
     typedef int64_t hts_pos_t;
 
     // basic bam opening/handling
-    typedef struct bam1_core_t {hts_pos_t pos; uint16_t flag; uint32_t l_qseq; ...;} bam1_core_t;
-    typedef struct bam1_t {bam1_core_t core; uint8_t *data; ...;} bam1_t;
+    typedef struct bam1_core_t {
+        hts_pos_t pos;
+        int32_t tid;
+        uint16_t bin; // NB: invalid on 64-bit pos
+        uint8_t qual;
+        uint8_t l_extranul;
+        uint16_t flag;
+        uint16_t l_qname;
+        uint32_t n_cigar;
+        int32_t l_qseq;
+        int32_t mtid;
+        hts_pos_t mpos;
+        hts_pos_t isize;
+    } bam1_core_t;
+
+
+    typedef struct bam1_t {
+        bam1_core_t core;
+        uint64_t id;
+        uint8_t *data;
+        int l_data;
+        uint32_t m_data;
+        uint32_t mempolicy:2, :30 /* Reserved */;
+    } bam1_t;
+
     bam1_t *bam_init1();
     void bam_destroy1(bam1_t *b);
     typedef struct mplp_data {...;} mplp_data;

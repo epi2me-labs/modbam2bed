@@ -173,6 +173,11 @@ class ModRead:
         return self._bam1_t.core.flag & 2048 > 0
 
     @property
+    def mapping_quality(self):
+        """Return mapping quality."""
+        return self._bam1_t.core.qual
+
+    @property
     def strand(self):
         """Return strand as '+' or '-'."""
         return "+-"[self.is_reverse]
