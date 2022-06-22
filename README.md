@@ -21,7 +21,7 @@ Packages are available for both Linux and MacOS.
 
 Alternatively to install from the source code, clone the repository and then use make:
 
-    git clone --recursive <repository>
+    git clone --recursive https://github.com/epi2me-labs/modbam2bed.git
     make modbam2bed
     ./modbam2bed
 

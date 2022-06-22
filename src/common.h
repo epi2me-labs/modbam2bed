@@ -8,7 +8,7 @@ typedef struct mod_base {
     char *name;
     char *abbrev;
     char base;
-    char code;
+    int code;
 } mod_base;
 
 static const size_t n_mod_bases = 10;

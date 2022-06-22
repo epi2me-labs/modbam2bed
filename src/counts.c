@@ -326,7 +326,7 @@ int pileup_cd_destroy(void *data, const bam1_t *b, bam_pileup_cd *cd) {
  *  @param tag_value associated with tag_name
  *  @param lowthreshold highest probability to call base as canonical.
  *  @param highthreshold lowest probablity to call base as modified.
- *  @param mod_base BAM code for modified base to report. (e.g. h for 5hmC).
+ *  @param mod_base BAM code for modified base to report. (e.g. h for 5hmC), or a ChEBI code.
  *  @returns a pileup data pointer.
  *
  *  The return value can be freed with destroy_plp_data.
@@ -335,8 +335,7 @@ int pileup_cd_destroy(void *data, const bam1_t *b, bam_pileup_cd *cd) {
 plp_data calculate_pileup(
         const set_fsets *fsets, const char *chr, int start, int end,
         const char *read_group, const char tag_name[2], const int tag_value,
-        int lowthreshold, int highthreshold, char mod_base, int max_depth) {
-
+        int lowthreshold, int highthreshold, int mod_base, int max_depth) {
     // setup bam reading
     size_t nfile = fsets->n;
     mplp_data **data = xalloc(fsets->n, sizeof(mplp_data*), "bam files");
@@ -344,7 +343,7 @@ plp_data calculate_pileup(
         data[i] = create_bam_iter_data(
             fsets->fsets[i], chr, start, end, read_group, tag_name, tag_value);
         if (data[i] == NULL) {
-            // TODO: cleanup
+            // TODO: clean-up all j<i data[i], and free data
             return NULL;
         }
     }
@@ -394,7 +393,9 @@ plp_data calculate_pileup(
                     if (nm > 0) {
                         hts_base_mod mod;
                         for (int k = 0; k < nm && k < n_mods; ++k) {
-                            if (allmod[k].modified_base == mod_base) {
+                            int mb = allmod[k].modified_base;
+                            if (mb < 0) {mb = -mb;} // ChEBI code
+                            if (mb == mod_base) {
                                 mod = allmod[k];
                                 // we found our mod
                                 //fprintf(stderr, "Modified %c to %c at %d\n",

@@ -44,9 +44,9 @@ static struct argp_option options[] = {
     {0, 0, 0, 0,
         "Base filtering options:"},
     {"canon_threshold", 'a', "THRESHOLD", 0,
-        "Bases with mod. probability < THRESHOLD are counted as canonical.", 2},
+        "Bases with mod. probability < THRESHOLD are counted as canonical (default 0.33).", 2},
     {"mod_threshold", 'b', "THRESHOLD", 0,
-        "Bases with mod. probability > THRESHOLD are counted as modified.", 2},
+        "Bases with mod. probability > THRESHOLD are counted as modified (default 0.66).", 2},
     {"cpg", 'c', 0, 0,
         "Output records filtered to CpG sites.", 2},
     {"chh", 0x400, 0, 0,
@@ -106,7 +106,9 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state) {
                 }
             }
             if (!found) {
-                argp_error (state, "Unrecognised modified base type: '%s'.", arg);
+                argp_error(
+                    state,
+                    "Unrecognised modified base type: %s. ChEBI codes are not supported", arg);
             }
             break;
         case 'r':
@@ -218,7 +220,7 @@ arguments_t parse_arguments(int argc, char** argv) {
             exit(1);
         }; 
     }
-    if ((int)args.cpg + args.chh + args.chh) {
+    if (args.cpg + args.chh + args.chh > 1) {
         fprintf(stderr, "INFO: Multiple filters given, output will be to files named e.g. '%s.cpg.bed'.\n", args.prefix);
     }
     if (tag_items % 2 > 0) {

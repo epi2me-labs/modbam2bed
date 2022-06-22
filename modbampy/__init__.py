@@ -8,7 +8,7 @@ import numpy as np
 import libmodbampy
 
 # remember to bump version in src/version.h too
-__version__ = "0.5.3"
+__version__ = "0.5.4"
 ffi = libmodbampy.ffi
 libbam = libmodbampy.lib
 
@@ -110,12 +110,23 @@ class ModBam:
         if max_depth is None:
             max_depth = libbam._INT_MAX
 
+        err = TypeError(
+            "'mod_base' should be a single character or an "
+            "integer (ChEBI) code.")
+        if isinstance(mod_base, str):
+            # ffi won't coerce a char to int, so we need to do it
+            if len(mod_base) != 1:
+                raise err
+            mod_base = ord(mod_base)
+        elif not isinstance(mod_base, int):
+            raise err
+
         _f = ffi.new("bam_fset *[]", [self._bam_fset])
         fsets = ffi.new("set_fsets *", {"fsets": _f, "n": 1})
         plp_data = libbam.calculate_pileup(
             fsets, chrom.encode(), start, end,
             read_group, tag_name, tag_value,
-            low_threshold, high_threshold, mod_base.encode(),
+            low_threshold, high_threshold, mod_base,
             max_depth)
         # TODO: check for NULL
 
