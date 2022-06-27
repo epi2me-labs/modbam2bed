@@ -60,7 +60,10 @@ void process_region(arguments_t args, const char *chr, int start, int end, char 
         args.lowthreshold, args.highthreshold, args.mod_base.code,
         args.hts_maxcnt);
     if (pileup == NULL) return;
+
+    init_output_buffers(bed_files);
     print_bedmethyl(pileup, ref, 0, args.extended, args.mod_base.abbrev, args.mod_base.base, bed_files);
+    flush_output_buffers(bed_files, chr, args.extended, args.mod_base.abbrev);
     destroy_plp_data(pileup);
 }
 #else
@@ -72,6 +75,7 @@ void process_region(arguments_t args, const char *chr, int start, int end, char 
     hts_tpool_result *r;
     const int width = 1000000;
 
+    init_output_buffers(bed_files);
     int nregs = 1 + (end - start) / width; float done = 0;
     for (int rstart = start; rstart < end; rstart += width) {
         twarg *tw_args = xalloc(1, sizeof(*tw_args), "thread worker args");  // freed in worker
@@ -109,6 +113,10 @@ void process_region(arguments_t args, const char *chr, int start, int end, char 
         }
         hts_tpool_delete_result(r, 0);
     }
+
+    // finalise any remaining singleton strands
+    flush_output_buffers(bed_files, chr, args.extended, args.mod_base.abbrev);
+
     fprintf(stderr, "\r100 %%  ");
     fprintf(stderr, "\n");
     // clean up pool
@@ -149,7 +157,7 @@ int main(int argc, char *argv[]) {
 
     // open output files, sort out filter options
     output_files bed_files = open_bed_files(
-        args.prefix, args.cpg, args.chh, args.chg);
+        args.prefix, args.cpg, args.chh, args.chg, args.accumulated);
 
     // load ref sequence
     faidx_t *fai = fai_load(args.ref);

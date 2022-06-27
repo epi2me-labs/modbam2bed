@@ -18,6 +18,7 @@ typedef struct arguments {
     bool chh;
     bool chg;
     bool extended;
+    bool accumulated;
     int threads;
     int lowthreshold;
     int highthreshold;

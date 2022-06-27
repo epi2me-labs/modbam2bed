@@ -4,7 +4,6 @@
 #include <stdbool.h>
 #include <limits.h>
 
-
 static const int _INT_MAX = INT_MAX;
 
 // medaka-style feature data
@@ -17,21 +16,42 @@ typedef struct _plp_data {
 } _plp_data;
 typedef _plp_data *plp_data;
 
+typedef struct bed_buffer {
+    int pos;
+    bool isrev;
+    size_t depth, cd, md, fd;
+} bed_buffer;
+
 // files open for writing outputs
+// this buf_size is silly, but its to work around CFFI sillyness
+static const size_t _buf_size = 2;
 typedef struct _output_files {
     bool multi;
     bool take_all;
+    bool accumulated;
     bool cpg;
     bool chh;
     bool chg;
     FILE *fcpg;
     FILE *fchh;
     FILE *fchg;
+    FILE *fcpg_acc;
+    FILE *fchh_acc;
+    FILE *fchg_acc;
+    size_t buf_size;
+    bed_buffer out_buffer[2];
+    size_t motif_offsets[2];
+    FILE* motif_acc_files[2];
 } _output_files;
 typedef _output_files *output_files;
 
-output_files open_bed_files(char* prefix, bool cpg, bool chh, bool chg);
+
+output_files open_bed_files(char* prefix, bool cpg, bool chh, bool chg, bool accumulated);
 void close_bed_files(output_files);
+// reset state of buffers (to handle loci split by thread blocks)
+void init_output_buffers(output_files bed_files);
+void flush_output_buffers(output_files bed_files, const char* chr, bool extended, char* feature);
+
 
 // Check sequences for motifs
 // CpG

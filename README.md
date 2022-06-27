@@ -26,7 +26,7 @@ Alternatively to install from the source code, clone the repository and then use
     ./modbam2bed
 
 See the Makefile for more information. The code has been tested on MacOS (with
-dependencies from brew) and on Ubuntu 18.04.
+dependencies from brew) and on Ubuntu 18.04 and 20.04.
 
 ### Usage
 
@@ -43,30 +43,37 @@ modbam2bed -- summarise one or more BAM with modified base tags to bedMethyl.
                              order).
   -m, --mod_base=BASE        Modified base of interest, one of: 5mC, 5hmC, 5fC,
                              5caC, 5hmU, 5fU, 5caU, 6mA, 5oxoG, Xao.
+  -p, --prefix=PREFIX        Output file prefix. Only used when multiple output
+                             filters are given.
   -r, --region=chr:start-end Genomic region to process.
   -t, --threads=THREADS      Number of threads for BAM processing.
 
  Base filtering options:
   -a, --canon_threshold=THRESHOLD
                              Bases with mod. probability < THRESHOLD are
-                             counted as canonical.
+                             counted as canonical (default 0.33).
+      --aggregated           Output additional aggregated (across strand)
+                             counts, requires --cpg or --chg.
   -b, --mod_threshold=THRESHOLD   Bases with mod. probability > THRESHOLD are
-                             counted as modified.
+                             counted as modified (default 0.66).
   -c, --cpg                  Output records filtered to CpG sites.
+      --chg                  Output records filtered to CHG sites.
+      --chh                  Output records filtered to CHH sites.
+  -k, --mask                 Respect soft-masking in reference file.
 
  Read filtering options:
+  -d, --max_depth=DEPTH      Max. per-file depth; avoids excessive memory
+                             usage.
   -g, --read_group=RG        Only process reads from given read group.
       --haplotype=VAL        Only process reads from a given haplotype.
                              Equivalent to --tag_name HP --tag_value VAL.
       --tag_name=TN          Only process reads with a given tag (see
                              --tag_value).
-      --tag_value=VAL        Only process reads with a given (integer) tag
-                             value.
+      --tag_value=VAL        Only process reads with a given tag value.
 
   -?, --help                 Give this help list
       --usage                Give a short usage message
   -V, --version              Print program version
-
 ```
 
 ### Method and output format
@@ -120,12 +127,10 @@ with verbatim base counts.
 
 The code has not been developed extensively and currently has some limitations:
 
- * Support for motif filtering is limit to CpG sites. Without this filtering
-   enabled all reference positions that are the canonical base (on forward or
-   reverse strand) equivalent to the modified base under consideration are
-   reported.
- * No option to combine per-strand counts into a total count (how to do this
-   generically depends on motif).
+ * Support for motif filtering is limit to CpG, CHG, and CHH, sites. Without
+   this filtering enabled all reference positions that are the canonical base
+   (on forward or reverse strand) equivalent to the modified base under
+   consideration are reported.
  * Insertion columns are completely ignored for simplicitly (and avoid
    any heuristics).
 
@@ -207,7 +212,7 @@ for testing and comparison to his independently developed code.
 
 **Licence and Copyright**
 
-© 2021 Oxford Nanopore Technologies Ltd.
+© 2021- Oxford Nanopore Technologies Ltd.
 
 `modbam2bed` is distributed under the terms of the Mozilla Public License 2.0.
 

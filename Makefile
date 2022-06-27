@@ -1,13 +1,17 @@
 OS := $(shell uname)
 ARCH := $(shell arch)
 
+OS := $(shell uname)
 ifeq ($(OS), Darwin)
-# mainly for dev builds using homebrew things
-ARGP ?= /opt/homebrew/opt/argp-standalone/lib/libargp.a
-ARGP_INCLUDE ?= -I/opt/homebrew/opt/argp-standalone/include
-EXTRA_LDFLAGS ?= -L/opt/homebrew/opt/openssl@3/lib
-CFLAGS ?= -fpic -O3 -std=c99
+    # mainly for dev builds using homebrew things
+    EXTRA_LDFLAGS ?= -L$(shell brew --prefix openssl@1.1)/lib
+    ARGP ?= $(shell brew --prefix argp-standalone)/lib/libargp.a
+    ARGP_INCLUDE ?= -I$(shell brew --prefix argp-standalone)/include
+else
+    ARGP ?=
+    ARGP_INCLUDE ?=
 endif
+
 
 CC ?= gcc
 CFLAGS ?= -fpic -msse3 -O3 -std=c99

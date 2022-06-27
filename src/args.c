@@ -53,6 +53,8 @@ static struct argp_option options[] = {
         "Output records filtered to CHH sites.", 2},
     {"chg", 0x500, 0, 0,
         "Output records filtered to CHG sites.", 2},
+    {"aggregate", 0x600, 0, 0,
+        "Output additional aggregated (across strand) counts, requires --cpg or --chg.", 2},
     {"mask", 'k', 0, 0,
         "Respect soft-masking in reference file.", 2},
     {0, 0, 0, 0,
@@ -122,6 +124,9 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state) {
             break;
         case 0x500:
             arguments->chg = true;
+            break;
+        case 0x600:
+            arguments->accumulated = true;
             break;
         case 'k':
             arguments->mask = true;
@@ -208,6 +213,7 @@ arguments_t parse_arguments(int argc, char** argv) {
     args.chh = false;
     args.chg = false;
     args.mask = false;
+    args.accumulated = false;
     args.extended = false;
     args.threads = 1;
     args.prefix = "mod-counts";

@@ -82,14 +82,18 @@ void print_pileup_data(plp_data pileup){
 }
 
 
-output_files open_bed_files(char* prefix, bool cpg, bool chh, bool chg) {
+output_files open_bed_files(char* prefix, bool cpg, bool chh, bool chg, bool accumulated) {
     output_files files = xalloc(1, sizeof(_output_files), "output_files");
     // default to stdout for zero or one filters
     files->multi = (int)cpg + chh + chg > 1;
     files->take_all = (int)cpg + chh + chg == 0;
+    files->accumulated = accumulated;
     files->fcpg = stdout;
     files->fchh = stdout;
     files->fchg = stdout;
+    files->fcpg_acc = NULL;
+    files->fchh_acc = NULL;
+    files->fchg_acc = NULL;
     files->cpg = cpg;
     files->chh = chh;
     files->chg = chg;
@@ -110,6 +114,28 @@ output_files open_bed_files(char* prefix, bool cpg, bool chh, bool chg) {
         }
         free(fname);
     }
+
+    if (files->accumulated) {
+        char* fname_acc = xalloc(strlen(prefix) + 13, sizeof(char), "fname");
+        if (cpg) {
+            strcpy(fname_acc, prefix); strcat(fname_acc, ".cpg.acc.bed");
+            files->fcpg_acc = fopen(fname_acc, "w");
+        }
+        if (chg) {
+            strcpy(fname_acc, prefix); strcat(fname_acc, ".chg.acc.bed");
+            files->fchg_acc = fopen(fname_acc, "w");
+        }
+        free(fname_acc);
+    }
+
+    // store these in an array for later ease
+    // [CpG, CHG]
+    init_output_buffers(files);
+    files->buf_size = _buf_size;
+    files->motif_offsets[0] = 1;
+    files->motif_offsets[1] = 2;
+    files->motif_acc_files[0] = files->fcpg_acc;
+    files->motif_acc_files[1] = files->fchg_acc;
     return files;
 }
 
@@ -117,6 +143,9 @@ void close_bed_files(output_files files) {
    if (files->fcpg != stdout) { fclose(files->fcpg); }
    if (files->fchh != stdout) { fclose(files->fchh); }
    if (files->fchg != stdout) { fclose(files->fchg); }
+   if (files->fcpg_acc != NULL) { fclose(files->fcpg_acc); }
+   if (files->fchh_acc != NULL) { fclose(files->fchh_acc); }
+   if (files->fchg_acc != NULL) { fclose(files->fchg_acc); }
    free(files);
 }
 
@@ -184,6 +213,59 @@ bool extern inline is_chg_rev(size_t rpos, int rlen, char* ref) {
     return is_chg;
 }
 
+
+void inline print_record(
+        FILE* fout, const char* rname, size_t start, size_t end,
+        char* feature, char orient, size_t depth,
+        bool extended, size_t cd, size_t md, size_t fd) {
+    // https://www.encodeproject.org/data-standards/wgbs/
+    // column 11: "Percentage of reads that show methylation at this position in the genome"
+    //  - Seems to disregard possibility of non-C canonical calls
+    // lets calculate this as proportion of meth:non-meth C
+    size_t tot = cd + md;
+    float meth = tot == 0 ? nanf("") : (100.0f * md) / tot;
+    // column 5: "Score from 0-1000. Capped number of reads"
+    // lets go with proportion of (mod or canon):(mod or canon or filtered)
+    size_t score = depth == 0 ? nanf("") : (1000 * tot) / depth;
+
+    // TODO: don't print when nan?
+    fprintf(fout,
+        "%s\t%zu\t%zu\t"
+        "%s\t%zu\t%c\t"
+        "%zu\t%zu\t0,0,0\t%zu\t%.2f",
+        rname, start, end,
+        feature, score, orient,
+        start, end + 1, depth, meth);
+    if (extended) {
+        fprintf(fout, "\t%zu\t%zu\t%zu\n", cd, md, fd);
+    } else {
+        fprintf(fout, "\n");
+    }
+}
+
+
+void init_output_buffers(output_files bed_files) {
+    // information regarding motif offset pairing
+    for (size_t i=0; i < bed_files->buf_size; ++i) {
+        bed_files->out_buffer[i] = (bed_buffer){-1, false, 0, 0, 0, 0};
+    }
+}
+
+void flush_output_buffers(output_files bed_files, const char* chr, bool extended, char* feature) {
+    // flush accumulation buffers
+    if (bed_files->accumulated) {
+        for(size_t ibuf=0; ibuf < bed_files->buf_size; ++ibuf) {
+            bed_buffer buf = bed_files->out_buffer[ibuf];
+            FILE* fout = bed_files->motif_acc_files[ibuf];
+            if (buf.pos != -1 && fout != NULL) {
+                print_record(
+                    fout, chr, buf.pos, buf.pos + 1, feature, "+-"[buf.isrev],
+                    buf.depth, extended, buf.cd, buf.md, buf.fd);
+            }
+        }
+    }
+}
+
 /** Prints a pileup data structure as bedmethyl file
  *
  *  @param pileup a pileup counts structure.
@@ -192,15 +274,14 @@ bool extern inline is_chg_rev(size_t rpos, int rlen, char* ref) {
  *  @param extended whether to include counts of canonical, modified and filtered bases.
  *  @param feature name to use for feature column of BED (e.g. 5mC).
  *  @param canon_base canonical base to match.
- *  @param cpg filter output to CpG sites.
- *  @param chh filter output to CHH sites.
- *  @param chg filter output to CHG sites.
+ *  @param output_files file handles and output options.
+ *  @param out_buffer state for strand accumulation (modified on output).
  *  @returns void
  *
  */
 void print_bedmethyl(
         plp_data pileup, char *ref, int rstart, bool extended,
-        char* feature, char canon_base, output_files bed_files){
+        char* feature, char canon_base, output_files bed_files) {
     // ecoli1  100718  100719  .       4       +       100718  100719  0,0,0   3       0
     
     // this is a bit naff, we should introspect these indices, or have them
@@ -219,10 +300,6 @@ void print_bedmethyl(
     else if (canon_base == 'G') {cif=6; cir=1; rc_canon_base = 'C';}
     else if (canon_base == 'T') {cif=7; cir=0; rc_canon_base = 'A';}
     else {fprintf(stderr, "ERROR: Unrecognised canonical base: '%c'\n", canon_base); exit(1);}
-    //if (canon_base != 'C' && (cpg || chh || chg)) {
-    //    fprintf(stderr, "ERROR: CpG filtering cannot be used when canonical base is not 'C'.\n");
-    //    exit(1);
-    //}
 
     int rlen = strlen(ref);
 
@@ -262,43 +339,59 @@ void print_bedmethyl(
         for (size_t j = 0; j < numbases; ++j) {
             depth += pileup->matrix[i * featlen + bases[j]];
         }
-        if (depth == 0) continue;
-        // https://www.encodeproject.org/data-standards/wgbs/
-        // column 11: "Percentage of reads that show methylation at this position in the genome"
-        //  - Seems to disregard possibility of non-C canonical calls
-        // lets calculate this as proportion of meth:non-meth C
         size_t cd = pileup->matrix[i * featlen + ci];
         size_t md = pileup->matrix[i * featlen + mi];
         size_t fd = pileup->matrix[i * featlen + fi];
-        size_t tot = cd + md;
-        if (tot == 0) continue;
-        float meth = tot == 0 ? 0 : (100.0f * md) / tot;
-        // column 5: "Score from 0-1000. Capped number of reads"
-        // lets go with proportion of (mod or canon):(mod or canon or filtered)
-        size_t score = depth == 0 ? 0 : (1000 * tot) / depth;
-       
-        // default to stdout 
+
+        // choose output for this locus, the motifs are mutually exclusive so
+        // no need to loop
         FILE* fout = stdout;
         if (bed_files->multi) {
             if (is_cpg) { fout = bed_files->fcpg; }
             else if (is_chh) { fout = bed_files->fchh; }
             else if (is_chg) { fout = bed_files->fchg; }
         }
+        print_record(
+            fout, pileup->rname, pos, pos + 1, feature, "+-"[isrev],
+            depth, extended, cd, md, fd);
 
-        fprintf(fout,
-            "%s\t%zu\t%zu\t"
-            "%s\t%zu\t%c\t"
-            "%zu\t%zu\t0,0,0\t%zu\t%.2f",
-            pileup->rname, pos, pos + 1,
-            feature, score, "+-"[isrev],
-            pos, pos + 1, depth, meth
-        );
-        if (extended) {
-            fprintf(fout, "\t%zu\t%zu\t%zu\n", cd, md, fd);
-        } else {
-            fprintf(fout, "\n");
+        // strand accumulated
+        if (bed_files->accumulated && (is_cpg || is_chg)) {
+            size_t ibuf, motif_offset;
+            bool do_output;
+            if (is_cpg) {
+                ibuf = 0; do_output = bed_files->cpg;
+            } else { // chg
+                ibuf = 1; do_output = bed_files->chh;
+            }
+            motif_offset = bed_files->motif_offsets[ibuf];
+            fout = bed_files->motif_acc_files[ibuf];
+            if (do_output) {
+                assert(fout != NULL);
+                bed_buffer buf = bed_files->out_buffer[ibuf];
+                if (buf.pos == -1) {
+                    bed_files->out_buffer[ibuf] = (bed_buffer){pos, isrev, depth, cd, md, fd};
+                } else if (pos - buf.pos == motif_offset ) { // paired
+                    assert(buf.isrev != isrev); // shouldn't happen, they can't be same
+                    buf.depth += depth;
+                    buf.cd += cd;
+                    buf.md += md;
+                    buf.fd += fd;
+                    print_record(
+                        fout, pileup->rname, buf.pos, buf.pos + motif_offset + 1, feature, '.',
+                        buf.depth, extended, buf.cd, buf.md, buf.fd);
+                    bed_files->out_buffer[ibuf] = (bed_buffer){-1, false, 0, 0, 0, 0};
+                } else { // unrelated
+                    print_record(
+                        fout, pileup->rname, buf.pos, buf.pos + 1, feature, "+-"[buf.isrev],
+                        buf.depth, extended, buf.cd, buf.md, buf.fd);
+                    bed_files->out_buffer[ibuf] = (bed_buffer){pos, isrev, depth, cd, md, fd};
+                }
+            }
         }
-    }
+
+    } // position loop
+
 }
 
 
