@@ -36,7 +36,7 @@ static struct argp_option options[] = {
     {"extended", 'e', 0, 0,
         "Output extended bedMethyl including counts of canonical, modified, and filtered bases (in that order)."},
     {"mod_base", 'm', "BASE", 0,
-        "Modified base of interest, one of: 5mC, 5hmC, 5fC, 5caC, 5hmU, 5fU, 5caU, 6mA, 5oxoG, Xao."},
+        "Modified base of interest, one of: 5mC, 5hmC, 5fC, 5caC, 5hmU, 5fU, 5caU, 6mA, 5oxoG, Xao. (Or modA, modC, modG, modT, modU, modN for generic modified base)."},
     {"threads", 't', "THREADS", 0,
         "Number of threads for BAM processing."},
     {"prefix", 'p', "PREFIX", 0,

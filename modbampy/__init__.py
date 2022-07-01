@@ -8,7 +8,7 @@ import numpy as np
 import libmodbampy
 
 # remember to bump version in src/version.h too
-__version__ = "0.5.4"
+__version__ = "0.6.1"
 ffi = libmodbampy.ffi
 libbam = libmodbampy.lib
 
@@ -291,9 +291,14 @@ class ModRead:
                 for i in range(n):
                     m = mods[i]
                     # note m.strand refers to strand recorded in the Mm tag.
+                    modbase = m.modified_base
+                    if modbase > 0:
+                        modbase = chr(modbase)
+                    else:
+                        modbase = -modbase
                     yield ModInfo(
                         self.query_name, rpos, pos[0], self.strand, m.strand,
-                        chr(m.canonical_base), chr(m.modified_base), m.qual)
+                        chr(m.canonical_base), modbase, m.qual)
 
 
 def main():

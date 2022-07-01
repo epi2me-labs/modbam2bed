@@ -11,18 +11,30 @@ typedef struct mod_base {
     int code;
 } mod_base;
 
-static const size_t n_mod_bases = 10;
+static const size_t n_mod_bases = 16;
 static const mod_base mod_bases[] = {
+    // C mods
     {"5-methylcytosine", "5mC", 'C', 'm'},
     {"5-hydroxymethylcytosine", "5hmC", 'C', 'h'},
     {"5-formylcytosine", "5fC", 'C', 'f'},
     {"5-carboxylcytosine", "5caC", 'C', 'c'},
+    {"Ambiguous C modification", "modC", 'C', 'C'},
+    // T mods
     {"5-hydroxymethyluracil", "5hmU", 'T', 'g'},
     {"5-formyluracil", "5fU", 'T', 'e'},
     {"5-carboxyluracil", "5caU", 'T', 'b'},
+    {"Ambiguous T modification", "modT", 'T', 'T'},
+    // A mods
     {"6-methyladenine", "6mA", 'A', 'a'},
+    {"Ambiguous A modification", "modA", 'A', 'A'},
+    // G mods
     {"8-Oxoguanine", "8oxoG", 'G', 'o'},
-    {"Xanthosine", "Xao", 'T', 'n'},
+    {"Ambiguous G modification", "modG", 'G', 'G'},
+    // U mods
+    {"Ambiguous U modification", "modU", 'U', 'U'},
+    // N Mods
+    {"Xanthosine", "Xao", 'N', 'n'},
+    {"Ambiguous N modification", "modN", 'N', 'N'},
 };
 static const mod_base default_mod_base = {"5-methylcytosine", "5mC", 'C', 'm'};
 
