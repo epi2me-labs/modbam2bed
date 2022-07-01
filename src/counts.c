@@ -235,7 +235,7 @@ void inline print_record(
         "%zu\t%zu\t0,0,0\t%zu\t%.2f",
         rname, start, end,
         feature, score, orient,
-        start, end + 1, depth, meth);
+        start, end, depth, meth);
     if (extended) {
         fprintf(fout, "\t%zu\t%zu\t%zu\n", cd, md, fd);
     } else {
