@@ -39,7 +39,7 @@ for minor in $@; do
         PYBIN="/opt/python/cp3${minor}-cp3${minor}m/bin"
     fi
     # auditwheel/issues/102
-    "${PYBIN}"/pip install --upgrade cffi setuptools pip wheel==0.31.1
+    "${PYBIN}"/pip install --upgrade setuptools pip wheel==0.31.1 cffi==1.15.0
     "${PYBIN}"/pip wheel --no-dependencies . -w ./wheelhouse/
 done
 
