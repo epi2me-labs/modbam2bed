@@ -61,7 +61,7 @@ class HTSBuild(build_ext):
 setup(
     name=__pkg_name__,
     version=__version__,
-    url='https://github.com/epi2me-labs/{}'.format(__pkg_name__),
+    url="https://github.com/epi2me-labs/modbam2bed",
     author=__author__,
     author_email='{}@nanoporetech.com'.format(__author__),
     cffi_modules=["build.py:ffibuilder"],
