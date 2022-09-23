@@ -18,21 +18,21 @@ requirements:
         # other things, even when we build our own. When
         # using bioconda htslib the other things can be
         # removed from here
-        - bioconda::htslib>=1.14
-        - libcurl
-        - bzip2
-        - xz
-        - zlib
-        - libdeflate
-        - openssl  # [not osx]
+        - bioconda::htslib>=1.16
+          # - libcurl
+          # - bzip2
+          # - xz
+          # - zlib
+          # - libdeflate
+          # - openssl  # [not osx]
     run:
-        - bioconda::htslib>=1.14
-        - libcurl
-        - bzip2
-        - xz
-        - zlib
-        - libdeflate
-        - openssl  # [not osx]
+        - bioconda::htslib>=1.16
+          # - libcurl
+          # - bzip2
+          # - xz
+          # - zlib
+          # - libdeflate
+          # - openssl  # [not osx]
 
 test:
     commands:

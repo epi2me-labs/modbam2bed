@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v0.6.3]
+### Changed
+- Bumped htslib version to version 1.16 for fixes to MM tag parsing/validation.
+- Change conda build back to bioconda::htslib since we're using a released version.
+
 ## [v0.6.2]
 ### Fixed
 - Off-by-one in pointless BED field.

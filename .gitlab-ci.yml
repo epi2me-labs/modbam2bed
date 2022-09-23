@@ -72,18 +72,24 @@ deploy-checks:
 
 conda:
     extends: .deploy-conda-linux
+    variables:
+        RECIPEPATH: "../conda"
     before_script:
         - *prep-image
         - export CONDA_PKG=${CI_PROJECT_NAME}
         - export CONDA_PKG_VERSION=${CI_COMMIT_TAG/v/}
-        - cd conda
+        - mkdir conda-build
+        - cd conda-build
 
 conda-mac:
     extends: .deploy-conda-mac
+    variables:
+        RECIPEPATH: "../conda"
     before_script:
         - export CONDA_PKG=${CI_PROJECT_NAME}
         - export CONDA_PKG_VERSION=${CI_COMMIT_TAG/v/}
-        - cd conda
+        - mkdir conda-build
+        - cd conda-build
 
 ### Python
 

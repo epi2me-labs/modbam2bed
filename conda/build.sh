@@ -2,18 +2,18 @@
 
 NAME=modbam2bed
 
-# self-built htslib
-export HTS_CONF_ARGS="--prefix=${PREFIX} --enable-libcurl --with-libdeflate --enable-plugins --enable-gcs --enable-s3"
-export EXTRA_CFLAGS="-I$PREFIX/include"
-export EXTRA_LDFLAGS="-L$PREFIX/lib"
-export EXTRA_LIBS="-ldl -lhts -ldeflate"
-#export STATIC_HTSLIB=""
-
-## just link to htslib from bioconda
+## self-built htslib
+#export HTS_CONF_ARGS="--prefix=${PREFIX} --enable-libcurl --with-libdeflate --enable-plugins --enable-gcs --enable-s3"
 #export EXTRA_CFLAGS="-I$PREFIX/include"
-#export STATIC_HTSLIB=""
 #export EXTRA_LDFLAGS="-L$PREFIX/lib"
-#export EXTRA_LIBS="-ldl -lhts"
+#export EXTRA_LIBS="-ldl -lhts -ldeflate"
+##export STATIC_HTSLIB=""
+
+# just link to htslib from bioconda
+export EXTRA_CFLAGS="-I$PREFIX/include"
+export STATIC_HTSLIB=""
+export EXTRA_LDFLAGS="-L$PREFIX/lib"
+export EXTRA_LIBS="-ldl -lhts"
 
 OS=$(uname)
 if [[ "$OS" == "Darwin" ]]; then
