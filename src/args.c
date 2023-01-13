@@ -41,13 +41,15 @@ static struct argp_option options[] = {
         "Number of threads for BAM processing."},
     {"prefix", 'p', "PREFIX", 0,
         "Output file prefix. Only used when multiple output filters are given."},
+    {"pileup", 'c', 0, 0,
+        "Output (full) raw base counts rather than BED file."},
     {0, 0, 0, 0,
         "Base filtering options:"},
     {"canon_threshold", 'a', "THRESHOLD", 0,
         "Bases with mod. probability < THRESHOLD are counted as canonical (default 0.33).", 2},
     {"mod_threshold", 'b', "THRESHOLD", 0,
         "Bases with mod. probability > THRESHOLD are counted as modified (default 0.66).", 2},
-    {"cpg", 'c', 0, 0,
+    {"cpg", 0x700, 0, 0,
         "Output records filtered to CpG sites.", 2},
     {"chh", 0x400, 0, 0,
         "Output records filtered to CHH sites.", 2},
@@ -116,7 +118,7 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state) {
         case 'r':
             arguments->region = arg;
             break;
-        case 'c':
+        case 0x700:
             arguments->cpg = true;
             break;
         case 0x400:
@@ -164,6 +166,9 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state) {
             break;
         case 'p':
             arguments->prefix = arg;
+            break;
+        case 'c':
+            arguments->pileup = true;
             break;
         case ARGP_KEY_NO_ARGS:
             argp_usage (state);
@@ -217,6 +222,7 @@ arguments_t parse_arguments(int argc, char** argv) {
     args.extended = false;
     args.threads = 1;
     args.prefix = "mod-counts";
+    args.pileup = false;
     args.hts_maxcnt = INT_MAX;
     argp_parse(&argp, argc, argv, 0, 0, &args);
     // allow CpG only for C!

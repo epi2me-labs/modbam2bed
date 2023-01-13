@@ -62,7 +62,11 @@ void process_region(arguments_t args, const char *chr, int start, int end, char 
     if (pileup == NULL) return;
 
     init_output_buffers(bed_files);
-    print_bedmethyl(pileup, ref, 0, args.extended, args.mod_base.abbrev, args.mod_base.base, bed_files);
+    if (args.pileup) {
+        print_pileup_data(pileup);
+    } else {
+        print_bedmethyl(pileup, ref, 0, args.extended, args.mod_base.abbrev, args.mod_base.base, bed_files);
+    }
     flush_output_buffers(bed_files, chr, args.extended, args.mod_base.abbrev);
     destroy_plp_data(pileup);
 }
@@ -87,9 +91,13 @@ void process_region(arguments_t args, const char *chr, int start, int end, char 
             if ((r = hts_tpool_next_result(q))) {
                 plp_data res = (plp_data)hts_tpool_result_data(r);
                 if (res != NULL) {
-                    print_bedmethyl(
-                        res, ref, 0,
-                        args.extended, args.mod_base.abbrev, args.mod_base.base, bed_files);
+                    if (args.pileup) {
+                        print_pileup_data(res);
+                    } else {
+                        print_bedmethyl(
+                            res, ref, 0,
+                            args.extended, args.mod_base.abbrev, args.mod_base.base, bed_files);
+                    }
                     destroy_plp_data(res);
                     done++;
                     fprintf(stderr, "\r%.1f %%", 100*done/nregs);
@@ -104,9 +112,13 @@ void process_region(arguments_t args, const char *chr, int start, int end, char 
     while ((r = hts_tpool_next_result(q))) {
         plp_data res = (plp_data)hts_tpool_result_data(r);
         if (res != NULL) {
-            print_bedmethyl(
-                res, ref, 0,
-                args.extended, args.mod_base.abbrev, args.mod_base.base, bed_files);
+            if (args.pileup) {
+                print_pileup_data(res);
+            } else {
+                print_bedmethyl(
+                    res, ref, 0,
+                    args.extended, args.mod_base.abbrev, args.mod_base.base, bed_files);
+            }
             destroy_plp_data(res);
             done++;
             fprintf(stderr, "\r%.1f %%", 100*done/nregs);

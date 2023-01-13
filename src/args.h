@@ -23,6 +23,7 @@ typedef struct arguments {
     int lowthreshold;
     int highthreshold;
     char* prefix;
+    bool pileup;
     int hts_maxcnt;
 } arguments_t;
 

@@ -4,7 +4,7 @@ Modified-base BAM to bedMethyl
 ------------------------------
 
 A program to aggregate modified base counts stored in a
-[modified-base BAM](https://circle-production-customer-artifacts.s3.amazonaws.com/picard/548f4caff7d0cea1406e35e3/60e6b57a449db620ab0ea9b7-0-build/artifacts/pdfs/SAMtags.pdf?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Date=20210725T133456Z&X-Amz-SignedHeaders=host&X-Amz-Expires=60&X-Amz-Credential=AKIAJR3Q6CR467H7Z55A%2F20210725%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Signature=0590263dd0113d97f83c533f1e3633cdba6a9652a8a9f457d6a0eb0d188037ef) (Section 2.1) file to 
+[modified-base BAM](https://samtools.github.io/hts-specs/SAMtags.pdf) (Section 2.1) file to 
 a [bedMethyl](https://www.encodeproject.org/data-standards/wgbs/) file.
 
 A Python module is also available to obtain modified base information
@@ -56,7 +56,7 @@ modbam2bed -- summarise one or more BAM with modified base tags to bedMethyl.
                              counts, requires --cpg or --chg.
   -b, --mod_threshold=THRESHOLD   Bases with mod. probability > THRESHOLD are
                              counted as modified (default 0.66).
-  -c, --cpg                  Output records filtered to CpG sites.
+      --cpg                  Output records filtered to CpG sites.
       --chg                  Output records filtered to CHG sites.
       --chh                  Output records filtered to CHH sites.
   -k, --mask                 Respect soft-masking in reference file.
@@ -127,12 +127,15 @@ with verbatim base counts.
 
 The code has not been developed extensively and currently has some limitations:
 
- * Support for motif filtering is limit to CpG, CHG, and CHH, sites. Without
+ * Support for motif filtering is limited to CpG, CHG, and CHH, sites. Without
    this filtering enabled all reference positions that are the canonical base
    (on forward or reverse strand) equivalent to the modified base under
    consideration are reported.
  * Insertion columns are completely ignored for simplicitly (and avoid
    any heuristics).
+ * Results for opposite strand `MM` tags (i.e. `MM:C-m` as compared with `MM:C+m`)
+   is not well tested. These are not typically used so shouldn't affect most users.
+   They do come in to play for duplex basecalls.
 
 ### Python package
 
