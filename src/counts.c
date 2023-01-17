@@ -217,7 +217,7 @@ bool extern inline is_chg_rev(size_t rpos, int rlen, char* ref) {
 void inline print_record(
         FILE* fout, const char* rname, size_t start, size_t end,
         char* feature, char orient, size_t depth,
-        bool extended, size_t cd, size_t md, size_t fd) {
+        bool extended, size_t cd, size_t md, size_t fd, size_t xd) {
     // https://www.encodeproject.org/data-standards/wgbs/
     // column 11: "Percentage of reads that show methylation at this position in the genome"
     //  - Seems to disregard possibility of non-C canonical calls
@@ -237,7 +237,7 @@ void inline print_record(
         feature, score, orient,
         start, end, depth, meth);
     if (extended) {
-        fprintf(fout, "\t%zu\t%zu\t%zu\n", cd, md, fd);
+        fprintf(fout, "\t%zu\t%zu\t%zu\t%zu\n", cd, md, fd, xd);
     } else {
         fprintf(fout, "\n");
     }
@@ -260,7 +260,7 @@ void flush_output_buffers(output_files bed_files, const char* chr, bool extended
             if (buf.pos != -1 && fout != NULL) {
                 print_record(
                     fout, chr, buf.pos, buf.pos + 1, feature, "+-"[buf.isrev],
-                    buf.depth, extended, buf.cd, buf.md, buf.fd);
+                    buf.depth, extended, buf.cd, buf.md, buf.fd, buf.xd);
             }
         }
     }
@@ -286,19 +286,17 @@ void print_bedmethyl(
     
     // this is a bit naff, we should introspect these indices, or have them
     // as data in the header.
-    static const size_t numbases = 7;
-    static const size_t fwdbases[] = {4,5,6,7,9,11,13};
-    static const size_t revbases[] = {0,1,2,3,8,10,12};
-    size_t ci, mi, fi;
+    size_t ci, mi, fi, xi;
     size_t *bases;
     bool isrev;
     char rc_canon_base = ' ';
     size_t cif, cir;
 
-    if (canon_base == 'A') {cif=4; cir=3; rc_canon_base = 'T';}
-    else if (canon_base == 'C') {cif=5; cir=2; rc_canon_base = 'G';}
-    else if (canon_base == 'G') {cif=6; cir=1; rc_canon_base = 'C';}
-    else if (canon_base == 'T') {cif=7; cir=0; rc_canon_base = 'A';}
+    // TODO: if canon_base were passed as an htslib int this would be cleaner
+    if      (canon_base == 'A') {cif=fwd_A; cir=rev_T; rc_canon_base = 'T';}
+    else if (canon_base == 'C') {cif=fwd_C; cir=rev_G; rc_canon_base = 'G';}
+    else if (canon_base == 'G') {cif=fwd_G; cir=rev_C; rc_canon_base = 'C';}
+    else if (canon_base == 'T') {cif=fwd_T; cir=rev_A; rc_canon_base = 'A';}
     else {fprintf(stderr, "ERROR: Unrecognised canonical base: '%c'\n", canon_base); exit(1);}
 
     int rlen = strlen(ref);
@@ -318,7 +316,7 @@ void print_bedmethyl(
                     || (bed_files->chg && (is_chg = is_chg_fwd(rpos, rlen, ref)))
                     ) ) { continue; }
             }
-            isrev = 0; mi = fwd_mod; fi = fwd_filt; ci = cif;
+            isrev = 0; mi = fwd_mod; fi = fwd_filt; xi = fwd_nocall; ci = cif;
             bases = (size_t *) fwdbases;
         } else if (rbase == rc_canon_base) {
             if (!bed_files->take_all) {
@@ -328,7 +326,7 @@ void print_bedmethyl(
                     || (bed_files->chg && (is_chg = is_chg_rev(rpos, rlen, ref)))
                     ) ) { continue; }
             }
-            isrev = 1; mi = rev_mod; fi = rev_filt; ci = cir;
+            isrev = 1; mi = rev_mod; fi = rev_filt; xi = rev_nocall; ci = cir;
             bases = (size_t *)revbases;
         }
         else {
@@ -342,6 +340,7 @@ void print_bedmethyl(
         size_t cd = pileup->matrix[i * featlen + ci];
         size_t md = pileup->matrix[i * featlen + mi];
         size_t fd = pileup->matrix[i * featlen + fi];
+        size_t xd = pileup->matrix[i * featlen + xi];
 
         // choose output for this locus, the motifs are mutually exclusive so
         // no need to loop
@@ -353,7 +352,7 @@ void print_bedmethyl(
         }
         print_record(
             fout, pileup->rname, pos, pos + 1, feature, "+-"[isrev],
-            depth, extended, cd, md, fd);
+            depth, extended, cd, md, fd, xd);
 
         // strand accumulated
         if (bed_files->accumulated && (is_cpg || is_chg)) {
@@ -370,22 +369,23 @@ void print_bedmethyl(
                 assert(fout != NULL);
                 bed_buffer buf = bed_files->out_buffer[ibuf];
                 if (buf.pos == -1) {
-                    bed_files->out_buffer[ibuf] = (bed_buffer){pos, isrev, depth, cd, md, fd};
+                    bed_files->out_buffer[ibuf] = (bed_buffer){pos, isrev, depth, cd, md, fd, xd};
                 } else if (pos - buf.pos == motif_offset ) { // paired
                     assert(buf.isrev != isrev); // shouldn't happen, they can't be same
                     buf.depth += depth;
                     buf.cd += cd;
                     buf.md += md;
                     buf.fd += fd;
+                    buf.xd += xd;
                     print_record(
                         fout, pileup->rname, buf.pos, buf.pos + motif_offset + 1, feature, '.',
-                        buf.depth, extended, buf.cd, buf.md, buf.fd);
-                    bed_files->out_buffer[ibuf] = (bed_buffer){-1, false, 0, 0, 0, 0};
+                        buf.depth, extended, buf.cd, buf.md, buf.fd, buf.xd);
+                    bed_files->out_buffer[ibuf] = (bed_buffer){-1, false, 0, 0, 0, 0, 0};
                 } else { // unrelated
                     print_record(
                         fout, pileup->rname, buf.pos, buf.pos + 1, feature, "+-"[buf.isrev],
-                        buf.depth, extended, buf.cd, buf.md, buf.fd);
-                    bed_files->out_buffer[ibuf] = (bed_buffer){pos, isrev, depth, cd, md, fd};
+                        buf.depth, extended, buf.cd, buf.md, buf.fd, buf.xd);
+                    bed_files->out_buffer[ibuf] = (bed_buffer){pos, isrev, depth, cd, md, fd, xd};
                 }
             }
         }
@@ -408,6 +408,42 @@ int pileup_cd_destroy(void *data, const bam1_t *b, bam_pileup_cd *cd) {
 }
 
 
+// TODO: this is taken from sam.c, its here so we can introspec some things
+//       for which there's no public interface. A little spicey to redefine
+//       this, but we do what we can.
+//       https://github.com/samtools/htslib/issues/1550
+#define MAX_BASE_MOD 256
+struct hts_base_mod_state {
+    int type[MAX_BASE_MOD];     // char or minus-CHEBI
+    int canonical[MAX_BASE_MOD];// canonical base, as seqi (1,2,4,8,15)
+    char strand[MAX_BASE_MOD];  // strand of modification; + or -
+    int MMcount[MAX_BASE_MOD];  // no. canonical bases left until next mod
+    char *MM[MAX_BASE_MOD];     // next pos delta (string)
+    char *MMend[MAX_BASE_MOD];  // end of pos-delta string
+    uint8_t *ML[MAX_BASE_MOD];  // next qual
+    int MLstride[MAX_BASE_MOD]; // bytes between quals for this type
+    int implicit[MAX_BASE_MOD]; // treat unlisted positions as non-modified?
+    int seq_pos;                // current position along sequence
+    int nmods;                  // used array size (0 to MAX_BASE_MOD-1).
+};
+
+
+// Query if a specific MM subtag is present
+bool query_mod_subtag(hts_base_mod_state *state, int qtype, int qcanonical, char qstrand, int qimplicit) {
+    bool found = false;
+    for (size_t i=0; i<state->nmods; ++i) {
+        if ((state->type[i] == qtype || state->type[i] == -qtype)
+                && state->canonical[i] == qcanonical
+                // although strand is typed char and documented as + or -, its actually 0/1
+                && "+-"[state->strand[i]] == qstrand
+                && state->implicit[i] == qimplicit) {
+            found = true;
+            break;
+        }
+    }
+    return found;
+}
+
 /** Generates base counts from a region of a bam.
  *
  *  @param bam_file input aligment file.
@@ -428,7 +464,10 @@ int pileup_cd_destroy(void *data, const bam1_t *b, bam_pileup_cd *cd) {
 plp_data calculate_pileup(
         const set_fsets *fsets, const char *chr, int start, int end,
         const char *read_group, const char tag_name[2], const int tag_value,
-        int lowthreshold, int highthreshold, int mod_base, int max_depth) {
+        int lowthreshold, int highthreshold, mod_base mb, int max_depth) {
+
+    static bool shown_second_strand_warning = false;
+
     // setup bam reading
     size_t nfile = fsets->n;
     mplp_data **data = xalloc(fsets->n, sizeof(mplp_data*), "bam files");
@@ -470,37 +509,89 @@ plp_data calculate_pileup(
                 const bam_pileup1_t *p = plp[file] + i;
                 if (p->is_refskip) continue;
 
-                int base_i = -1;
+                // ONT calls are "query based", this means an attempt at a mod call is
+                // made only if the first-pass canon basecall was the base of interest.
+                // They are NOT "reference based": a mod call being attempted when the
+                // query position aligns to a reference position containing the
+                // of-interest base. (Actually reading between the lines of the spec
+                // discussions, there was an implied assumption that mod calls are
+                // always query based).
+                //
+                // There are two modes:
+                //  i) "." - implicit = 1; Unlisted positions are assumed canonical
+                // ii) "?" - implicit = 0; Nothing can really be said about unlisted
+                //
+                // Case i) is trivial and easy to handle: no mod calls, assume canonical.
+                // This is like just not having a tag at all. If the above found no mods,
+                // any query base (ACGT) is assumed canonical
+                //
+                // Case ii) is a bit more icky for us. Before deciding canon/no-call we
+                // need to know if there was even a tag present, e.g. C+m for 5mC. For
+                // canon base types other than that relating to our mod base, we make
+                // no claims about modification status: all forms are lumped together.
+                //
+                // For the most part ONT callers output `?` and have a call for every
+                // of-interest base. There are two cases where this isn't true:
+                //  i) Guppy elided some low prob calls (as in the `.` mode)
+                // ii) callers which specialise to CpG (so don't have an entry for every C)
+                //
+                // To complicate things further we can have tags such as "C-m" indicating
+                // methylation on the second strand of the sequenced read. Such tags ought
+                // not to occur without a corresponding "C+m" tag: in a simple case this
+                // would imply a caller had called methylation on the strand that wasn't
+                // sequenced but not on the strand that was sequenced. A more realistic
+                // situation would be making calls only on the second strands of duplex reads.
+                //
+                // Here we simplify our lives by restricting to the case of skipping any
+                // such second strand tags, for the reasons above but also primarily
+                // because ideally the second strand tag should be jointly interpreted
+                // with the first strand tag:
+                //    to detect hemimethylation
+                //    understand and correctly report depth
+                //    made hard by them being on different positions
+
+                int base_i = -1;  // index into counts matrix
+                int base_j = bam1_seqi(bam1_seq(p->b), p->qpos);
                 if (p->is_del) {
                     // deletions are interesting for counting depth
                     base_i = bam_is_rev(p->b) ? rev_del : fwd_del;
-                } else {
-                    int base_j = bam1_seqi(bam1_seq(p->b), p->qpos);
-
-                    // Simple mod detection
+                } else if (!(
+                        (base_j == mb.base_i && !bam_is_rev(p->b))
+                        || (seqi_rc[base_j] == mb.base_i && bam_is_rev(p->b)))) {
+                    // e.g. if query we're looking for 5mC and qbase in {A,T}
+                    //      we'll just count a plain A/T
+                    // NOTE: this test assumes only first strand subtags (e.g. C+m, not C-m)
+                    base_i = num2countbase[bam_is_rev(p->b) ? base_j + 16: base_j];
+                } else {		
+                    // We have the correct query base for the orientation of the alignment
+                    // so now look for modified bases.
                     size_t n_mods = 256;
                     hts_base_mod_state *mod_state = p->cd.p;
                     hts_base_mod allmod[n_mods];
                     int nm = bam_mods_at_qpos(p->b, p->qpos, mod_state, allmod, n_mods);
                     if (nm < 0 ) continue;  // ignore reads which give error
+                    bool found = false; 
                     if (nm > 0) {
                         hts_base_mod mod;
+                        // TODO: deal with multiple overlapping tags e.g. C+m, C+h, ...
                         for (int k = 0; k < nm && k < n_mods; ++k) {
-                            int mb = allmod[k].modified_base;
-                            if (mb < 0) {mb = -mb;} // ChEBI code
-                            if (mb == mod_base) {
-                                mod = allmod[k];
-                                // we found our mod
-                                //fprintf(stderr, "Modified %c to %c at %d\n",
-                                //    mod.canonical_base, mod.modified_base, pos);
-                                // make decision between mod and unmod.
-                                //float q = -10 * log10(1 - ((mod[0].qual + 0.5) / 256)) + 0.5;
+                            mod = allmod[k];
+                            if (mod.strand == 1) {  // second strand tag
+                                if (!shown_second_strand_warning) {
+                                    fprintf(stderr, "WARNING: Skipping second strand tag.");
+                                    shown_second_strand_warning = true;
+                                }
+                                continue;
+                            }
+                            if (mb.code == mod.modified_base
+                                    || mb.code == -mod.modified_base) {
+                                found = true;
                                 if (mod.qual > highthreshold) {
+                                    // modified
                                     base_i = bam_is_rev(p->b) ? rev_mod : fwd_mod;
                                 } else if (mod.qual < lowthreshold) {
                                     // canonical
-                                    if bam_is_rev(p->b) base_j += 16;
-                                    base_i = num2countbase[base_j];
+                                    base_i = num2countbase[bam_is_rev(p->b) ? base_j + 16: base_j];
                                 } else {
                                     // filter out
                                     base_i = bam_is_rev(p->b) ? rev_filt : fwd_filt;
@@ -508,10 +599,19 @@ plp_data calculate_pileup(
                                 break;
                             }
                         }
-                    } else {
-                        // no mod call - assume this means canonical
-                        if bam_is_rev(p->b) base_j += 16;
-                        base_i = num2countbase[base_j];
+                    }
+                    if (found == false) {
+                        // No mod base subtag entry was found. In the case of explicit `?`
+                        // tag we should not assume canonical, otherwise we can.
+                        // NOTE: we don't look for second strand `-` tags.
+                        if (query_mod_subtag(mod_state, mb.code, mb.base_i, '+', 0)) {
+                            // we had an explicit tag, but no call for this position
+                            base_i = bam_is_rev(p->b) ? rev_nocall : fwd_nocall;
+                        }
+                        else {
+                            // for everything else theres canonical
+                            base_i = num2countbase[bam_is_rev(p->b) ? base_j + 16 : base_j];
+                        }
                     }
                 }
                 if (base_i != -1) {  // not an ambiguity code

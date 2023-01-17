@@ -4,6 +4,8 @@
 #include <stdbool.h>
 #include <limits.h>
 
+#include "common.h"
+
 static const int _INT_MAX = INT_MAX;
 
 // medaka-style feature data
@@ -19,7 +21,7 @@ typedef _plp_data *plp_data;
 typedef struct bed_buffer {
     int pos;
     bool isrev;
-    size_t depth, cd, md, fd;
+    size_t depth, cd, md, fd, xd;
 } bed_buffer;
 
 // files open for writing outputs
@@ -68,21 +70,30 @@ bool extern inline is_chg_fwd(size_t rpos, int rlen, char* ref);
 bool extern inline is_chg_rev(size_t rpos, int rlen, char* ref);
 
 // medaka-style base encoding - augmented with (a) modified base counts
-static const char plp_bases[] = "acgtACGTdDmMfF";  // f for "filtered"
-static const size_t featlen = 14; // len of the above
-static const size_t fwd_del = 9;  // position of D
-static const size_t rev_del = 8;  // position of d
-static const size_t fwd_mod = 11; // position of M
-static const size_t rev_mod = 10; // position of m
-static const size_t fwd_filt = 13; // position of F
-static const size_t rev_filt = 12; // position of f
+static const char plp_bases[] = "acgtACGTdDmMfFxX";  // f:"filtered", x:"no call"
+
+enum plp_index {
+    rev_A, rev_C, rev_G, rev_T,
+    fwd_A, fwd_C, fwd_G, fwd_T, 
+    rev_del, fwd_del,
+    rev_mod, fwd_mod,
+    rev_filt, fwd_filt,
+    rev_nocall, fwd_nocall,
+    featlen
+};
+static const size_t fwdbases[] = 
+    {fwd_A, fwd_C, fwd_G, fwd_T, fwd_del, fwd_mod, fwd_filt, fwd_nocall}; 
+static const size_t revbases[] = 
+    {rev_A, rev_C, rev_G, rev_T, rev_del, rev_mod, rev_filt, rev_nocall};
+static const size_t numbases = 8;
 
 // convert 16bit IUPAC (+16 for strand) to plp_bases index
+// e.g. G=4 => fwd_G => plp_bases[6]
 static const int num2countbase[32] = {
- -1,  4,  5, -1,  6, -1, -1, -1,
-  7, -1, -1, -1, -1, -1, -1, -1,
- -1,  0,  1, -1,  2, -1, -1, -1,
-  3, -1, -1, -1, -1, -1, -1, -1,
+      -1, fwd_A, fwd_C,  -1, fwd_G,  -1, -1, -1,
+   fwd_T,    -1,    -1,  -1,    -1,  -1, -1, -1,
+      -1, rev_A, rev_C,  -1, rev_G,  -1, -1, -1,
+   rev_T,    -1,    -1,  -1,    -1,  -1, -1, -1,
 };
 
 
@@ -129,7 +140,9 @@ void print_pileup_data(plp_data pileup);
  *  @returns void
  *
  */
-void print_bedmethyl(plp_data pileup, char *ref, int rstart, bool extended, char *feature, char canon_base, output_files bed_files);
+void print_bedmethyl(
+    plp_data pileup, char *ref, int rstart, bool extended,
+    char *feature, char canon_base, output_files bed_files);
 
 
 /** Generates base counts from a region of a bam.
@@ -143,7 +156,7 @@ void print_bedmethyl(plp_data pileup, char *ref, int rstart, bool extended, char
  *  @param tag_value associated with tag_name
  *  @param lowthreshold highest probability to call base as canonical.
  *  @param highthreshold lowest probablity to call base as modified.
- *  @param mod_base BAM code for modified base to report. (e.g. h for 5hmC), or a ChEBI code.
+ *  @param mod_base a mod_base instance
  *  @param max_depth maximum depth of pileup.
  *  @returns a pileup data pointer.
  *
@@ -153,6 +166,6 @@ void print_bedmethyl(plp_data pileup, char *ref, int rstart, bool extended, char
 plp_data calculate_pileup(
     const set_fsets *fsets, const char *chr, int start, int end,
     const char *read_group, const char tag_name[2], const int tag_value,
-    int lowthreshold, int highthreshold, int mod_base, int max_depth);
+    int lowthreshold, int highthreshold, mod_base mb, int max_depth);
 
 #endif

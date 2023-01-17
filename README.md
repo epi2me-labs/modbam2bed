@@ -33,6 +33,9 @@ dependencies from brew) and on Ubuntu 18.04 and 20.04.
 The code requires aligned reads with the `Mm` and `Ml` tags (`MM` and `ML` also supported),
 and the reference sequence used for alignment.
 
+The below is a snapshot of the command-line interface; it may not be up-to-date, please
+refer to the program `--help` option for the most accurate guidance.
+
 ```
 Usage: modbam2bed [OPTION...] <reference.fasta> <reads.bam> [<reads.bam> ...]
 modbam2bed -- summarise one or more BAM with modified base tags to bedMethyl.
@@ -83,6 +86,10 @@ including modified bases and deletions. Inserted bases are not counted. Bases
 of an abiguous nature, as defined by the two threshold probabilities are
 masked and used (along with substitutions and deletions) in the definition
 of the "score" (column 5) and "coverage" (column 10) entries of the bedMethyl file.
+In the case of `?`-style `MM` subtags, where a lack of a recorded call should
+not be taken as implying a canonical-base call, the "no call" count is incremented.
+The "no call" count is used in the calculation of "coverage" and also the denominator
+of "score".
 
 > The description of the [bedMethyl](https://www.encodeproject.org/data-standards/wgbs/)
 > format on the ENCODE project website is rather loose. The definitions below are chosen pragmatically.
@@ -100,6 +107,7 @@ bases to agree with reasonable interpretations of the bedMethyl specifications:
    were filtered from the calculation of the modification frequency.
  * N<sub>sub</sub> - count of reads with a substitution with respect to the reference.
  * N<sub>del</sub> - count of reads with a deletion with respect to the reference.
+ * N<sub>nocall</sub> - counts of reads with an absent modification call (but not a substitution or deletion).
 
 Since these interpretations may differ from other tools an extended output is
 available (enabled with the `-e` option) which includes three additional columns
@@ -111,14 +119,15 @@ with verbatim base counts.
 | 2      | 0-based start position                                                                                                                                                                                                                                                       |
 | 3      | 0-based exclusive end position (invariably start + 1)                                                                                                                                                                                                                        |
 | 4      | Abbreviated name of modified-base examined                                                                                                                                                                                                                                   |
-| 5      | "Score" 1000 * (N<sub>mod</sub> + N<sub>canon</sub>) / (N<sub>mod</sub> + N<sub>canon</sub> + N<sub>filt</sub> + N<sub>sub</sub> + N<sub>del</sub>). The quantity reflects the extent to which the calculated modification frequency in Column 11 is confounded by the alternative calls. The denominator here is the total read coverage as given in Column 10. |
+| 5      | "Score" 1000 * (N<sub>mod</sub> + N<sub>canon</sub>) / (N<sub>mod</sub> + N<sub>canon</sub> + N<sub>nocall</sub> + N<sub>filt</sub> + N<sub>sub</sub> + N<sub>del</sub>). The quantity reflects the extent to which the calculated modification frequency in Column 11 is confounded by the alternative calls. The denominator here is the total read coverage as given in Column 10. |
 | 6      | Strand (of reference sequence). Forward "+", or reverse "-".                                                                                                                                                                                                                 |
 | 7-9    | Ignore, included simply for compatibility.                                                                                                                                                                                                                                   |
-| 10     | Read coverage at reference position including all canonical, modified, undecided (filtered), substitutions from reference, and deletions.  N<sub>mod</sub> + N<sub>canon</sub> + N<sub>filt</sub> + N<sub>sub</sub> + N<sub>del</sub>                                        |
-| 11     | Percentage of modified bases, as a proportion of canonical and modified (excluding filtered, substitutions, and deletions).  100 \* N<sub>mod</sub> / (N<sub>mod</sub> + N<sub>canon</sub>)                                                                                       |
+| 10     | Read coverage at reference position including all canonical, modified, undecided (no calls and filtered), substitutions from reference, and deletions.  N<sub>mod</sub> + N<sub>canon</sub> + N<sub>nocall</sub> + N<sub>filt</sub> + N<sub>sub</sub> + N<sub>del</sub>                                        |
+| 11     | Percentage of modified bases, as a proportion of canonical and modified (excluding no calls, filtered, substitutions, and deletions).  100 \* N<sub>mod</sub> / (N<sub>mod</sub> + N<sub>canon</sub>)                                                                                       |
 | 12\*    | N<sub>canon</sub>                                                                                                                                                                                                                                                            |
 | 13\*    | N<sub>mod</sub>                                                                                                                                                                                                                                                         |
 | 14\*    | N<sub>filt</sub> those bases with a modification probability falling between given thresholds.                                                                                                                                                                           |
+| 15\*    | N<sub>nocall</sub> those bases for which the query base was the correct canonical base for the modified base being considered, but no call was made (see the definition of the `.` and `?` flags in the SAM tag specification).                                                                                                                                                                           |
 
 \* Included in extended output only.
 
@@ -133,9 +142,10 @@ The code has not been developed extensively and currently has some limitations:
    consideration are reported.
  * Insertion columns are completely ignored for simplicitly (and avoid
    any heuristics).
- * Results for opposite strand `MM` tags (i.e. `MM:C-m` as compared with `MM:C+m`)
-   is not well tested. These are not typically used so shouldn't affect most users.
-   They do come in to play for duplex basecalls.
+ * Second strand `MM` subtags (i.e. `MM:C-m` as compared with `MM:C+m`)
+   are not supported. These are not typically used so shouldn't affect most users.
+   If such a tag is detected and warning will be thrown and the tag ignored. This tags
+   do come in to play for duplex basecalls.
 
 ### Python package
 

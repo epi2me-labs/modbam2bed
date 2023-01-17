@@ -36,6 +36,56 @@ def _tidy_args(read_group, tag_name, tag_value):
     return read_group, tag_name, tag_value
 
 
+class ModBase:
+    """Helper to create a mod_base instance.
+
+    Actually just a compatible list is created. Reuses the predefined
+    instances from header where possible.
+    """
+
+    def __init__(self, code, base=None, name="unknown", abbrev="unknown"):
+        self._name = ffi.new("char[]", name.encode())
+        self._abbrev= ffi.new("char[]", abbrev.encode())
+        self._base = base
+        err = TypeError(
+            "'base' should be a single character or None")
+        if isinstance(self._base, str):
+            if len(self._base) != 1:
+                raise err
+            self._base = base.encode()
+            self._base_i = {"A":1, "C":2, "G":4, "T":8}[base]
+        elif self._base is not None:
+            raise err
+
+        err = TypeError(
+            "'code' should be a single character or an "
+            "integer (ChEBI) code.")
+        self._code = code
+        if isinstance(self._code, str):
+            # ffi won't coerce a char to int, so we need to do it
+            if len(self._code) != 1:
+                raise err
+            self._code = ord(self._code)
+        elif not isinstance(self._code, int):
+            raise err
+
+    @property
+    def struct(self):
+        for i in range(libbam.n_mod_bases):
+            if libbam.mod_bases[i].code == self._code:
+                return libbam.mod_bases[i]
+
+        # make a new mod_base using a code and a canonical base
+        if self._base is None:
+            raise ValueError(
+                f"Modified base type '{self._code}' unknown. Please provide "
+                "a value for 'base' to describe the unmodified base.")
+        mod_base_type = [
+            self._name, self._abbrev,
+            self._base, self._base_i, self._code]
+        return mod_base_type
+
+
 class ModBam:
     """A minimal class to iterate over a bam."""
 
@@ -89,7 +139,7 @@ class ModBam:
             self, chrom, start, end,
             read_group=None, tag_name=None, tag_value=None,
             low_threshold=0.33, high_threshold=0.66, mod_base="m",
-            max_depth=None):
+            max_depth=None, canon_base=None):
         """Create a base count matrix.
 
         :param chrom: reference sequence from BAM.
@@ -110,23 +160,13 @@ class ModBam:
         if max_depth is None:
             max_depth = libbam._INT_MAX
 
-        err = TypeError(
-            "'mod_base' should be a single character or an "
-            "integer (ChEBI) code.")
-        if isinstance(mod_base, str):
-            # ffi won't coerce a char to int, so we need to do it
-            if len(mod_base) != 1:
-                raise err
-            mod_base = ord(mod_base)
-        elif not isinstance(mod_base, int):
-            raise err
-
         _f = ffi.new("bam_fset *[]", [self._bam_fset])
         fsets = ffi.new("set_fsets *", {"fsets": _f, "n": 1})
+        mod_base = ModBase(code=mod_base, base=canon_base)
         plp_data = libbam.calculate_pileup(
             fsets, chrom.encode(), start, end,
             read_group, tag_name, tag_value,
-            low_threshold, high_threshold, mod_base,
+            low_threshold, high_threshold, mod_base.struct,
             max_depth)
         # TODO: check for NULL
 

@@ -108,15 +108,20 @@ cdef = ["""
         const bam1_t *b, hts_base_mod_state *state,
         hts_base_mod *mods, int n_mods, int *pos);
 
+    // from common.h needed in functions in counts.h
+    //typedef struct mod_base {...;} mod_base;
+
     // END: custom header
 """]
 
 # add in some things from headers, removing directives
-for header in ('src/counts.h', ):
+for header in ('src/common.h', 'src/counts.h'):
     with open(header, 'r') as fh:
         cdef.append("// START: {}".format(header))
         cdef.append(
-            ''.join(x for x in fh.readlines() if not x.startswith('#')))
+            ''.join(
+                x for x in fh.readlines()
+                if not (x.startswith('#') or x.startswith("static inline int"))))
         cdef.append("// END: {}".format(header))
 
 ffibuilder.cdef('\n\n'.join(cdef))

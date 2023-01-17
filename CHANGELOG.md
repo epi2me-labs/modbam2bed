@@ -4,11 +4,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [unreleased]
+## [0.7.0]
 ### Added
-- `--pileup` option to ouptu full raw base counts rather than BED methyl.
+- `--pileup` option to output full raw base counts rather than BED methyl.
 ### Changed
 - `-c` no longer synonym to `--cpg`.
+- `?`-style MM subtags now handle correctly with "missing" entries being recorded
+  as "no call" rather than implied canonical.
+- extended output now includes a 15th column for "no call" bases.
 ### Fixed
 - Links in README.
 

@@ -39,3 +39,11 @@ class MotifTest(unittest.TestCase):
                     print(site)
                     assert site.mbase == expected_tag
 
+    def test_020_pileup(self):
+        with ModBam(test_bam) as bam:
+            bam.pileup("ecoli1", 105000, 105100)
+        with ModBam(tag_codes_bam) as bam:
+            with self.assertRaises(ValueError):
+                bam.pileup("ecoli1", 0, 4000000, mod_base=27551)
+            bam.pileup("ecoli1", 0, 4000000, mod_base=27551, canon_base="C")
+

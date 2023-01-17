@@ -17,8 +17,11 @@ requirements:
         # explicitly list htslib to get same versions of
         # other things, even when we build our own. When
         # using bioconda htslib the other things can be
-        # removed from here
-        - bioconda::htslib>=1.16
+        # removed from here. The pin is because we copy
+        # private interface code for hts_base_mod_state
+        # so need to ensure compatibility. We should
+        # hopefully be fine with ABI
+        - bioconda::htslib==1.16
           # - libcurl
           # - bzip2
           # - xz
