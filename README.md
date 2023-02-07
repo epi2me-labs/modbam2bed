@@ -83,13 +83,46 @@ modbam2bed -- summarise one or more BAM with modified base tags to bedMethyl.
 
 The htslib pileup API is used to create a matrix of per-strand base counts
 including modified bases and deletions. Inserted bases are not counted. Bases
-of an abiguous nature, as defined by the two threshold probabilities are
+of an abiguous nature (refered to as "filtered" below), as defined by the two threshold probabilities are
 masked and used (along with substitutions and deletions) in the definition
 of the "score" (column 5) and "coverage" (column 10) entries of the bedMethyl file.
 In the case of `?`-style `MM` subtags, where a lack of a recorded call should
 not be taken as implying a canonical-base call, the "no call" count is incremented.
 The "no call" count is used in the calculation of "coverage" and also the denominator
 of "score".
+
+**An aside on alternative modified bases (`--combine` option)**
+
+Oxford Nanopore Technogies' sequencing chemistries and basecallers can detect
+any number of modified bases. Compared to traditional methods which force a
+false dichoctomy between say cytosine and 5-methylcytosine, this rich biology
+needs to be remembered when interpreting modified base calls.
+
+In its default mode `modbam2bed` considers only a single modified-base tag in
+the source BAM file and makes a choice between the categories "modified" and
+"canonical" based on quality score stored within the BAM file. **Only when a
+single modified base tag is present these categorical names are directly
+intepretable.** However, in the case where multiple tags are present the quality
+score does not directly measure the choice "modified" or "canonical". The score
+that should be associated with a "canonical" call is a function of all the
+modified-base qualities from all listed tags.
+
+To intepret more correctly the case of multiple modifications being listed in
+the BAM, `modbam2bed` includes an option `--combine`. When used, all
+modification tags corresponding to the same canonical base are examined. The
+choice "modified" vs. "canonical" for a particular base in a read is then driven
+by any one of the family of modification tags containing a score which indicates
+a modification being present.  For example if both 5hmC and 5mC tags are
+present, if either the score for 5hmC or 5mC is greater than the threshold
+score, the site will be deemed to be modifed.  If all tags when considered
+independently would indicate the "canonical" category then the output of
+`modbam2bed` will include a count for this category. In all other situations,
+i.e. a mix of "canonical" and "filtered", the output will contain a "filtered"
+count.
+
+***A particular case where `--combine` is useful is when comparing to the result of bisulfite sequencing.***
+
+**Output format**
 
 > The description of the [bedMethyl](https://www.encodeproject.org/data-standards/wgbs/)
 > format on the ENCODE project website is rather loose. The definitions below are chosen pragmatically.
@@ -100,7 +133,7 @@ file specification, the values written are fixed and no meaning should be derive
 from them. Columns 5, 10, and 11 are defined in terms of counts of observed
 bases to agree with reasonable interpretations of the bedMethyl specifications:
 
- * N<sub>canon</sub> - canonical (unmodified) base count.
+ * N<sub>canon</sub> - canonical (unmodified) base count, (contigent on the use of `--combine`, see above.)
  * N<sub>mod</sub> - modified base count.
  * N<sub>filt</sub> - count of bases where read does not contain a substitution or deletion
    with respect to the reference, but the modification status is ambiguous: these bases
@@ -198,7 +231,7 @@ The result is two [numpy](https://numpy.org/) arrays. The first indicates the re
 positions associated with the counts in the second array. Each row of the second array
 (`counts` above) enumerates the observed counts of bases in the order:
 
-    a c g t A C G T d D m M f F
+    a c g t A C G T d D m M f F n N
 
 where uppercase letters refer to bases on the forward strand, lowercase letters
 relate to the reverse strand:
@@ -208,6 +241,7 @@ relate to the reverse strand:
 * M modified base counts,
 * F filtered counts - bases in reads with a modified-base record but which were filtered
   according to the thresholds provided.
+* N no call base counts.
 
 **Extras**
 

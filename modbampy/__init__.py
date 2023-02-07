@@ -8,7 +8,7 @@ import numpy as np
 import libmodbampy
 
 # remember to bump version in src/version.h too
-__version__ = "0.7.0"
+__version__ = "0.8.0"
 ffi = libmodbampy.ffi
 libbam = libmodbampy.lib
 
@@ -38,6 +38,11 @@ def _tidy_args(read_group, tag_name, tag_value):
 
 class ModBase:
     """Helper to create a mod_base instance.
+
+    :param code: modified base ChEBI code (e.g. "h" or 104)
+    :param base: one of {A, C, G, T}
+    :param name: long name of modified base (e.g. "5-methylcytosine")
+    :param abbrev: short name of modified base (e.g. "5mC")
 
     Actually just a compatible list is created. Reuses the predefined
     instances from header where possible.
@@ -139,7 +144,7 @@ class ModBam:
             self, chrom, start, end,
             read_group=None, tag_name=None, tag_value=None,
             low_threshold=0.33, high_threshold=0.66, mod_base="m",
-            max_depth=None, canon_base=None):
+            max_depth=None, canon_base=None, combine=False):
         """Create a base count matrix.
 
         :param chrom: reference sequence from BAM.
@@ -148,6 +153,17 @@ class ModBam:
         :param read group: read group of read to return.
         :param tag_name: read tag to check during read filtering.
         :param tag_value: tag value for reads to keep.
+        :param low_threshold: threshold below which a base is determined as
+            not the modified base.
+        :param high_threshold: threshold above which a base is determined
+            to be the modified base.
+        :param mod_base: ChEBI code of modified base to examine.
+        :param max_depth: maximum read depth to examine.
+        :param canon_base: canonical base corresponding to `mod_base`.
+            Required only if `mod_base is not a modification known to
+            the code.
+        :param combine: combine (include) all alternative modifications
+            with the same parent canonical base.
         """
         for thresh in (low_threshold, high_threshold):
             if thresh < 0.0 or thresh > 1.0:
@@ -167,7 +183,7 @@ class ModBam:
             fsets, chrom.encode(), start, end,
             read_group, tag_name, tag_value,
             low_threshold, high_threshold, mod_base.struct,
-            max_depth)
+            combine, max_depth)
         # TODO: check for NULL
 
         # copy data to numpy, we could be more clever here an wrap

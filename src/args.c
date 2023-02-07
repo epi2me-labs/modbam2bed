@@ -37,6 +37,10 @@ static struct argp_option options[] = {
         "Output extended bedMethyl including counts of canonical, modified, and filtered bases (in that order)."},
     {"mod_base", 'm', "BASE", 0,
         "Modified base of interest, one of: 5mC, 5hmC, 5fC, 5caC, 5hmU, 5fU, 5caU, 6mA, 5oxoG, Xao. (Or modA, modC, modG, modT, modU, modN for generic modified base)."},
+    {"combine", 0x800, 0, 0,
+        "Create output with combined modified counts: i.e. alternative modified bases within the same family (same canonical base) are included."},
+    {"aggregate", 0x600, 0, 0,
+        "Output additional aggregated (across strand) counts, requires --cpg or --chg."},
     {"threads", 't', "THREADS", 0,
         "Number of threads for BAM processing."},
     {"prefix", 'p', "PREFIX", 0,
@@ -55,8 +59,6 @@ static struct argp_option options[] = {
         "Output records filtered to CHH sites.", 2},
     {"chg", 0x500, 0, 0,
         "Output records filtered to CHG sites.", 2},
-    {"aggregate", 0x600, 0, 0,
-        "Output additional aggregated (across strand) counts, requires --cpg or --chg.", 2},
     {"mask", 'k', 0, 0,
         "Respect soft-masking in reference file.", 2},
     {0, 0, 0, 0,
@@ -114,6 +116,9 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state) {
                     state,
                     "Unrecognised modified base type: %s. ChEBI codes are not supported", arg);
             }
+            break;
+        case 0x800:
+            arguments->combine = true;
             break;
         case 'r':
             arguments->region = arg;
@@ -206,6 +211,7 @@ static struct argp argp = {options, parse_opt, args_doc, doc};
 arguments_t parse_arguments(int argc, char** argv) {
     arguments_t args;
     args.mod_base = default_mod_base;
+    args.combine = false;
     args.lowthreshold = (int)(0.33 * 255);
     args.highthreshold = (int)(0.66 * 255);
     args.bam = NULL;
@@ -246,6 +252,15 @@ arguments_t parse_arguments(int argc, char** argv) {
     if (args.highthreshold < args.lowthreshold) {
         fprintf(stderr, "ERROR: --highthreshold must be larger than --lowthreshold\n");
         exit(1);
+    }
+    if (strncmp("5mC", args.mod_base.abbrev, 3) == 0 || strncmp("5hmC", args.mod_base.abbrev, 4)) {
+        fprintf(stderr,
+"WARNING: You have specified either 5mC or 5hmC as a modified base.\n\
+         Oxford Nanopore Basecallers jointly call C, 5mC, and 5hmC. If you\n\
+         wish to combine calls of these bases into a single 'modified'\n\
+         count, please use the `--combine` option. The default behaviour\n\
+         is that calls of alternative modified bases are added to the\n\
+         non-modified (the then misnamed 'canonical' count).");
     }
     return args;
 }

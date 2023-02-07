@@ -13,6 +13,7 @@ typedef struct arguments {
     char tag_name[2];
     int tag_value;
     mod_base mod_base;
+    bool combine;
     bool mask;
     bool cpg;
     bool chh;

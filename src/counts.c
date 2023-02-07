@@ -455,7 +455,8 @@ bool query_mod_subtag(hts_base_mod_state *state, int qtype, int qcanonical, char
  *  @param tag_value associated with tag_name
  *  @param lowthreshold highest probability to call base as canonical.
  *  @param highthreshold lowest probablity to call base as modified.
- *  @param mod_base BAM code for modified base to report. (e.g. h for 5hmC), or a ChEBI code.
+ *  @param mb BAM code for modified base to report. (e.g. h for 5hmC), or a ChEBI code.
+ *  @param combine combine all modified bases corresponding to same canonical base as mb
  *  @returns a pileup data pointer.
  *
  *  The return value can be freed with destroy_plp_data.
@@ -464,7 +465,7 @@ bool query_mod_subtag(hts_base_mod_state *state, int qtype, int qcanonical, char
 plp_data calculate_pileup(
         const set_fsets *fsets, const char *chr, int start, int end,
         const char *read_group, const char tag_name[2], const int tag_value,
-        int lowthreshold, int highthreshold, mod_base mb, int max_depth) {
+        int lowthreshold, int highthreshold, mod_base mb, bool combine, int max_depth) {
 
     static bool shown_second_strand_warning = false;
 
@@ -568,12 +569,13 @@ plp_data calculate_pileup(
                     size_t n_mods = 256;
                     hts_base_mod_state *mod_state = p->cd.p;
                     hts_base_mod allmod[n_mods];
+                    int valid[n_mods]; size_t n_valid = 1;
+                    bool found = false; 
                     int nm = bam_mods_at_qpos(p->b, p->qpos, mod_state, allmod, n_mods);
                     if (nm < 0 ) continue;  // ignore reads which give error
-                    bool found = false; 
+                    hts_base_mod mod;
                     if (nm > 0) {
-                        hts_base_mod mod;
-                        // TODO: deal with multiple overlapping tags e.g. C+m, C+h, ...
+                        // first find set of valid tags - those with correct canonical base
                         for (int k = 0; k < nm && k < n_mods; ++k) {
                             mod = allmod[k];
                             if (mod.strand == 1) {  // second strand tag
@@ -583,27 +585,43 @@ plp_data calculate_pileup(
                                 }
                                 continue;
                             }
-                            if (mb.code == mod.modified_base
-                                    || mb.code == -mod.modified_base) {
+                            if (mb.code == mod.modified_base || mb.code == -mod.modified_base) {
+                                valid[0] = k;
                                 found = true;
-                                if (mod.qual > highthreshold) {
-                                    // modified
-                                    base_i = bam_is_rev(p->b) ? rev_mod : fwd_mod;
-                                } else if (mod.qual < lowthreshold) {
-                                    // canonical
-                                    base_i = num2countbase[bam_is_rev(p->b) ? base_j + 16: base_j];
-                                } else {
-                                    // filter out
-                                    base_i = bam_is_rev(p->b) ? rev_filt : fwd_filt;
-                                }
-                                break;
+                            }   
+                            else if (mod.canonical_base == mb.base) {
+                                valid[n_valid] = k;
+                                n_valid++;
+                                found = found || combine;
                             }
+                        }
+                        size_t kmin = found ? 0 : 1;
+                        size_t kmax = !combine ? 1 : n_valid;
+
+                        size_t modified = 0;
+                        size_t canonical = 0;
+                        size_t filtered = 0;
+                        for (int k = kmin; k < kmax; ++k) {
+                            mod = allmod[valid[k]];
+                            if (mod.qual > highthreshold) { modified++; }
+                            else if (mod.qual < lowthreshold) { canonical++; }
+                            else (filtered++);
+                        }
+                        if (modified > 0) { // modified trumps all
+                            base_i = bam_is_rev(p->b) ? rev_mod : fwd_mod;
+                        }
+                        else if (canonical == (kmax - kmin)) { // all were canonical
+                            base_i = num2countbase[bam_is_rev(p->b) ? base_j + 16: base_j];
+                        }
+                        else { // ambiguous
+                            base_i = bam_is_rev(p->b) ? rev_filt : fwd_filt;
                         }
                     }
                     if (found == false) {
                         // No mod base subtag entry was found. In the case of explicit `?`
                         // tag we should not assume canonical, otherwise we can.
                         // NOTE: we don't look for second strand `-` tags.
+                        //       or a mess of `?` and `.` for alternative mods
                         if (query_mod_subtag(mod_state, mb.code, mb.base_i, '+', 0)) {
                             // we had an explicit tag, but no call for this position
                             base_i = bam_is_rev(p->b) ? rev_nocall : fwd_nocall;

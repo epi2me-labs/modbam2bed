@@ -157,6 +157,7 @@ void print_bedmethyl(
  *  @param lowthreshold highest probability to call base as canonical.
  *  @param highthreshold lowest probablity to call base as modified.
  *  @param mod_base a mod_base instance
+ *  @param combine combine all modified bases corresponding to same canonical base as mb
  *  @param max_depth maximum depth of pileup.
  *  @returns a pileup data pointer.
  *
@@ -166,6 +167,6 @@ void print_bedmethyl(
 plp_data calculate_pileup(
     const set_fsets *fsets, const char *chr, int start, int end,
     const char *read_group, const char tag_name[2], const int tag_value,
-    int lowthreshold, int highthreshold, mod_base mb, int max_depth);
+    int lowthreshold, int highthreshold, mod_base mb, bool combine, int max_depth);
 
 #endif
