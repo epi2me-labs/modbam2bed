@@ -13,9 +13,11 @@
 const char *argp_program_bug_address = "chris.wright@nanoporetech.com";
 static char doc[] = 
  "modbam2bed -- summarise one or more BAM with modified base tags to bedMethyl.\
- \vPositions absent from the methylation tags are assumed to be canonical. \
- Positions with modified probability between upper and lower thresholds\
- are removed from the counting process. Column 5 (\"score\") of the output\
+ \vModification information store in the BAM files is examine to derive\
+ an identity of a possibly modified base. Calls are filtered by the\
+ user-provided threshold probability. By default a single-modified base\
+ is reported in the output, though the `--combine` option can fuse\
+ calls for all modification in a family. Column 5 (\"score\") of the output\
  is calculated as the proportion of bases called as the canonical or modified\
  reference base with respect to the number of spanning reads, scaled to a\
  maximum of 1000. Column 10 is the total read coverage including reads with:\
@@ -24,7 +26,9 @@ static char doc[] =
  and deletions. Column 11 is the percentage of reference-base calls identified\
  as being modified (as a proportion of those confidently determined as\
  canonical or modified). Extended output (-e option) can give raw counts\
- of canonical, modified, and undetermined bases for completeness.\
+ of canonical, modified, alternatively modified, and undetermined bases\
+ for completeness. See https://github.com/epi2me-labs/modbam2bed for a\
+ overly precise explanation of the output.\
  \n\nOutput is to standard output unless multiple motif filters are specified.\
  In such cases the --prefix option controls the output file name.";
 static char args_doc[] = "<reference.fasta> <reads.bam> [<reads.bam> ...]";
@@ -49,10 +53,10 @@ static struct argp_option options[] = {
         "Output (full) raw base counts rather than BED file."},
     {0, 0, 0, 0,
         "Base filtering options:"},
-    {"canon_threshold", 'a', "THRESHOLD", 0,
-        "Bases with mod. probability < THRESHOLD are counted as canonical (default 0.33).", 2},
-    {"mod_threshold", 'b', "THRESHOLD", 0,
-        "Bases with mod. probability > THRESHOLD are counted as modified (default 0.66).", 2},
+    {"threshold", 'a', "THRESHOLD", 0,
+        "Deprecated, the value of this option is ignored.", 2},
+    {"threshold", 'b', "THRESHOLD", 0,
+        "Bases with a call probability < THRESHOLD are filtered from results(default 0.66).", 2},
     {"cpg", 0x700, 0, 0,
         "Output records filtered to CpG sites.", 2},
     {"chh", 0x400, 0, 0,
@@ -94,6 +98,7 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state) {
             if (thresh < 0 || thresh > 1.0) {
                 argp_error (state, "Threshold parameter must be in (0,1), got %s", arg);
             }
+            fprintf(stderr, "Option `-a` is deprecated, its value will be ignored. Please use only `-b`. This option will be removed in a future version.");
             arguments->lowthreshold = (int)(thresh * 255);
             break;
         case 'b':
@@ -212,8 +217,8 @@ arguments_t parse_arguments(int argc, char** argv) {
     arguments_t args;
     args.mod_base = default_mod_base;
     args.combine = false;
-    args.lowthreshold = (int)(0.33 * 255);
-    args.highthreshold = (int)(0.66 * 255);
+    args.lowthreshold = (int)(0.33 * MAX_QUAL);
+    args.highthreshold = (int)(0.66 * MAX_QUAL);
     args.bam = NULL;
     args.ref = NULL;
     args.region = NULL;
@@ -260,7 +265,7 @@ arguments_t parse_arguments(int argc, char** argv) {
          wish to combine calls of these bases into a single 'modified'\n\
          count, please use the `--combine` option. The default behaviour\n\
          is that calls of alternative modified bases are added to the\n\
-         non-modified (the then misnamed 'canonical' count).");
+         alternatively-modified count.");
     }
     return args;
 }

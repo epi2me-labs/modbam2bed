@@ -4,6 +4,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v0.9.0]
+### Added
+- "Other" modified base column to extended output. For example, when using
+  `-m 5mC` to count 5-methylcytosine in reads, the "other" column will
+  enumerate counts of other cytosine modifications present. When using the
+  option `--combine` this column will contain zero (the counts being included
+  in the modified base count).
+### Fixed
+- In line with the "other" column, when not using the `--combine` option
+  the potential presence of other modifications in the same family of the
+  base requested is taking into account. This has an effect of distributing
+  some previously erroneous "canonical/non-modified" calls to "other" and
+  "filtered" counts.
+### Removed
+- The option `-a` is deprecated and its value is ignored. Use only `-b` to
+  specify a call filter threshold.
+
 ## [v0.8.0]
 ### Added
 - `--combine` option to combine calls from all modified bases in a family.

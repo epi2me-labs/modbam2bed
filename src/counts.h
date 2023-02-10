@@ -21,7 +21,7 @@ typedef _plp_data *plp_data;
 typedef struct bed_buffer {
     int pos;
     bool isrev;
-    size_t depth, cd, md, fd, xd;
+    size_t depth, cd, md, fd, xd, od;
 } bed_buffer;
 
 // files open for writing outputs
@@ -70,22 +70,23 @@ bool extern inline is_chg_fwd(size_t rpos, int rlen, char* ref);
 bool extern inline is_chg_rev(size_t rpos, int rlen, char* ref);
 
 // medaka-style base encoding - augmented with (a) modified base counts
-static const char plp_bases[] = "acgtACGTdDmMfFxX";  // f:"filtered", x:"no call"
+static const char plp_bases[] = "acgtACGTdDmMfoOfFxX";  // o: "other mod", f:"filtered", x:"no call"
 
 enum plp_index {
     rev_A, rev_C, rev_G, rev_T,
     fwd_A, fwd_C, fwd_G, fwd_T, 
     rev_del, fwd_del,
     rev_mod, fwd_mod,
+    rev_other, fwd_other,
     rev_filt, fwd_filt,
     rev_nocall, fwd_nocall,
     featlen
 };
 static const size_t fwdbases[] = 
-    {fwd_A, fwd_C, fwd_G, fwd_T, fwd_del, fwd_mod, fwd_filt, fwd_nocall}; 
+    {fwd_A, fwd_C, fwd_G, fwd_T, fwd_del, fwd_mod, fwd_other, fwd_filt, fwd_nocall}; 
 static const size_t revbases[] = 
-    {rev_A, rev_C, rev_G, rev_T, rev_del, rev_mod, rev_filt, rev_nocall};
-static const size_t numbases = 8;
+    {rev_A, rev_C, rev_G, rev_T, rev_del, rev_mod, rev_other, rev_filt, rev_nocall};
+static const size_t numbases = featlen / 2;
 
 // convert 16bit IUPAC (+16 for strand) to plp_bases index
 // e.g. G=4 => fwd_G => plp_bases[6]

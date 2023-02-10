@@ -81,44 +81,48 @@ modbam2bed -- summarise one or more BAM with modified base tags to bedMethyl.
 
 ### Method and output format
 
-The htslib pileup API is used to create a matrix of per-strand base counts
-including modified bases and deletions. Inserted bases are not counted. Bases
-of an abiguous nature (refered to as "filtered" below), as defined by the two threshold probabilities are
-masked and used (along with substitutions and deletions) in the definition
-of the "score" (column 5) and "coverage" (column 10) entries of the bedMethyl file.
-In the case of `?`-style `MM` subtags, where a lack of a recorded call should
-not be taken as implying a canonical-base call, the "no call" count is incremented.
-The "no call" count is used in the calculation of "coverage" and also the denominator
-of "score".
-
-**An aside on alternative modified bases (`--combine` option)**
-
 Oxford Nanopore Technogies' sequencing chemistries and basecallers can detect
 any number of modified bases. Compared to traditional methods which force a
 false dichoctomy between say cytosine and 5-methylcytosine, this rich biology
 needs to be remembered when interpreting modified base calls.
 
-In its default mode `modbam2bed` considers only a single modified-base tag in
-the source BAM file and makes a choice between the categories "modified" and
-"canonical" based on quality score stored within the BAM file. **Only when a
-single modified base tag is present these categorical names are directly
-intepretable.** However, in the case where multiple tags are present the quality
-score does not directly measure the choice "modified" or "canonical". The score
-that should be associated with a "canonical" call is a function of all the
-modified-base qualities from all listed tags.
+The htslib pileup API is used to create a matrix of per-strand base counts
+including substitutions, modified bases and deletions. Inserted bases are not
+counted. Bases of an abiguous nature (refered to as "filtered" below), as
+defined by the filter threshold probabilities option `-b` are masked and used
+(along with substitutions and deletions) in the definition of the "score"
+(column 5) and "coverage" (column 10) entries of the bedMethyl file.
 
-To intepret more correctly the case of multiple modifications being listed in
-the BAM, `modbam2bed` includes an option `--combine`. When used, all
-modification tags corresponding to the same canonical base are examined. The
-choice "modified" vs. "canonical" for a particular base in a read is then driven
-by any one of the family of modification tags containing a score which indicates
-a modification being present.  For example if both 5hmC and 5mC tags are
-present, if either the score for 5hmC or 5mC is greater than the threshold
-score, the site will be deemed to be modifed.  If all tags when considered
-independently would indicate the "canonical" category then the output of
-`modbam2bed` will include a count for this category. In all other situations,
-i.e. a mix of "canonical" and "filtered", the output will contain a "filtered"
-count.
+In the case of `?`-style `MM` subtags, where a lack of a recorded call should
+not be taken as implying a canonical-base call, the "no call" count is incremented.
+The "no call" count is used in the calculation of "coverage" and also the denominator
+of "score".
+
+In summary, a base is determined as being either "canonical", "modified", "filtered",
+or "no call". The final output includes a modification frequency and score and
+coverage information in order to assess the reliability of the frequency.
+
+**Call filtering**
+
+To determine the base present at a locus in a read, the query base in the
+BAM record is examined along with the modified base information. A "canonical"
+base probability is calculated as `1 - sum(P_mod)`, with `P_mod` being
+the set of probabilities associated with all the modifications enumerated
+in the BAM record. The base form with largest probability is taken as the
+base present subject to the user-specified threshold. If the probability
+is below the threshold the call is masked and contributes to the "filtered"
+base count rather than the "canonical" or "modified" counts.
+
+**Special Handling of alternative modified bases (`--combine` option)**
+
+To intepret the case of multiple modifications being listed in
+the BAM, `modbam2bed` can operate in two modes:
+
+* *default*: alternative modified bases in the same family as the requested
+  modification are counted separatedly as "other" --- neither in
+  the "canonical" count of the "modified" count.
+* `--combine`: alternative modified bases are lumped together into the 
+  "modified" count and ultimately into a single modification frequency.
 
 ***A particular case where `--combine` is useful is when comparing to the result of bisulfite sequencing.***
 
@@ -141,6 +145,7 @@ bases to agree with reasonable interpretations of the bedMethyl specifications:
  * N<sub>sub</sub> - count of reads with a substitution with respect to the reference.
  * N<sub>del</sub> - count of reads with a deletion with respect to the reference.
  * N<sub>nocall</sub> - counts of reads with an absent modification call (but not a substitution or deletion).
+ * N<sub>alt mod</sub> - counts of reads with and alternative modification call (but not a substitution or deletion).
 
 Since these interpretations may differ from other tools an extended output is
 available (enabled with the `-e` option) which includes three additional columns
@@ -152,15 +157,16 @@ with verbatim base counts.
 | 2      | 0-based start position                                                                                                                                                                                                                                                       |
 | 3      | 0-based exclusive end position (invariably start + 1)                                                                                                                                                                                                                        |
 | 4      | Abbreviated name of modified-base examined                                                                                                                                                                                                                                   |
-| 5      | "Score" 1000 * (N<sub>mod</sub> + N<sub>canon</sub>) / (N<sub>mod</sub> + N<sub>canon</sub> + N<sub>nocall</sub> + N<sub>filt</sub> + N<sub>sub</sub> + N<sub>del</sub>). The quantity reflects the extent to which the calculated modification frequency in Column 11 is confounded by the alternative calls. The denominator here is the total read coverage as given in Column 10. |
+| 5      | "Score" 1000 * (N<sub>mod</sub> + N<sub>canon</sub>) / (N<sub>mod</sub> + N<sub>canon</sub> + N<sub>no call</sub> + N<sub>alt mod</sub> + N<sub>filt</sub> + N<sub>sub</sub> + N<sub>del</sub>). The quantity reflects the extent to which the calculated modification frequency in Column 11 is confounded by the alternative calls. The denominator here is the total read coverage as given in Column 10. |
 | 6      | Strand (of reference sequence). Forward "+", or reverse "-".                                                                                                                                                                                                                 |
 | 7-9    | Ignore, included simply for compatibility.                                                                                                                                                                                                                                   |
-| 10     | Read coverage at reference position including all canonical, modified, undecided (no calls and filtered), substitutions from reference, and deletions.  N<sub>mod</sub> + N<sub>canon</sub> + N<sub>nocall</sub> + N<sub>filt</sub> + N<sub>sub</sub> + N<sub>del</sub>                                        |
-| 11     | Percentage of modified bases, as a proportion of canonical and modified (excluding no calls, filtered, substitutions, and deletions).  100 \* N<sub>mod</sub> / (N<sub>mod</sub> + N<sub>canon</sub>)                                                                                       |
+| 10     | Read coverage at reference position including all canonical, modified, undecided (no calls and filtered), substitutions from reference, and deletions.  N<sub>mod</sub> + N<sub>canon</sub> + N<sub>no call</sub> + N<sub>alt mod</sub> + N<sub>filt</sub> + N<sub>sub</sub> + N<sub>del</sub>                                        |
+| 11     | Percentage of modified bases, as a proportion of canonical and modified (excluding no calls, filtered, substitutions, and deletions).  100 \* N<sub>mod</sub> / (N<sub>mod</sub>  + N<sub>alt mod</sub> + N<sub>canon</sub>)                                                                                       |
 | 12\*    | N<sub>canon</sub>                                                                                                                                                                                                                                                            |
 | 13\*    | N<sub>mod</sub>                                                                                                                                                                                                                                                         |
 | 14\*    | N<sub>filt</sub> those bases with a modification probability falling between given thresholds.                                                                                                                                                                           |
-| 15\*    | N<sub>nocall</sub> those bases for which the query base was the correct canonical base for the modified base being considered, but no call was made (see the definition of the `.` and `?` flags in the SAM tag specification).                                                                                                                                                                           |
+| 15\*    | N<sub>no call</sub> those bases for which the query base was the correct canonical base for the modified base being considered, but no call was made (see the definition of the `.` and `?` flags in the SAM tag specification).                                                                                                                                                                           |
+| 16\*    | N<sub>alt mod</sub> those bases for which the query base was the correct canonical base for the modified base being considered, but and alternative modification was present.                                                                                                                                                                           |
 
 \* Included in extended output only.
 
@@ -177,7 +183,7 @@ The code has not been developed extensively and currently has some limitations:
    any heuristics).
  * Second strand `MM` subtags (i.e. `MM:C-m` as compared with `MM:C+m`)
    are not supported. These are not typically used so shouldn't affect most users.
-   If such a tag is detected and warning will be thrown and the tag ignored. This tags
+   If such a tag is detected and warning will be thrown and the tag ignored. These tags
    do come in to play for duplex basecalls.
 
 ### Python package

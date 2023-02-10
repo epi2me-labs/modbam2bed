@@ -217,12 +217,12 @@ bool extern inline is_chg_rev(size_t rpos, int rlen, char* ref) {
 void inline print_record(
         FILE* fout, const char* rname, size_t start, size_t end,
         char* feature, char orient, size_t depth,
-        bool extended, size_t cd, size_t md, size_t fd, size_t xd) {
+        bool extended, size_t cd, size_t md, size_t fd, size_t xd, size_t od) {
     // https://www.encodeproject.org/data-standards/wgbs/
     // column 11: "Percentage of reads that show methylation at this position in the genome"
     //  - Seems to disregard possibility of non-C canonical calls
     // lets calculate this as proportion of meth:non-meth C
-    size_t tot = cd + md;
+    size_t tot = cd + md + od;
     float meth = tot == 0 ? nanf("") : (100.0f * md) / tot;
     // column 5: "Score from 0-1000. Capped number of reads"
     // lets go with proportion of (mod or canon):(mod or canon or filtered)
@@ -237,7 +237,7 @@ void inline print_record(
         feature, score, orient,
         start, end, depth, meth);
     if (extended) {
-        fprintf(fout, "\t%zu\t%zu\t%zu\t%zu\n", cd, md, fd, xd);
+        fprintf(fout, "\t%zu\t%zu\t%zu\t%zu\t%zu\n", cd, md, fd, xd, od);
     } else {
         fprintf(fout, "\n");
     }
@@ -260,7 +260,7 @@ void flush_output_buffers(output_files bed_files, const char* chr, bool extended
             if (buf.pos != -1 && fout != NULL) {
                 print_record(
                     fout, chr, buf.pos, buf.pos + 1, feature, "+-"[buf.isrev],
-                    buf.depth, extended, buf.cd, buf.md, buf.fd, buf.xd);
+                    buf.depth, extended, buf.cd, buf.md, buf.fd, buf.xd, buf.od);
             }
         }
     }
@@ -286,7 +286,7 @@ void print_bedmethyl(
     
     // this is a bit naff, we should introspect these indices, or have them
     // as data in the header.
-    size_t ci, mi, fi, xi;
+    size_t ci, mi, fi, xi, oi;
     size_t *bases;
     bool isrev;
     char rc_canon_base = ' ';
@@ -316,7 +316,7 @@ void print_bedmethyl(
                     || (bed_files->chg && (is_chg = is_chg_fwd(rpos, rlen, ref)))
                     ) ) { continue; }
             }
-            isrev = 0; mi = fwd_mod; fi = fwd_filt; xi = fwd_nocall; ci = cif;
+            isrev = 0; mi = fwd_mod; fi = fwd_filt; xi = fwd_nocall; oi = fwd_other; ci = cif;
             bases = (size_t *) fwdbases;
         } else if (rbase == rc_canon_base) {
             if (!bed_files->take_all) {
@@ -326,7 +326,7 @@ void print_bedmethyl(
                     || (bed_files->chg && (is_chg = is_chg_rev(rpos, rlen, ref)))
                     ) ) { continue; }
             }
-            isrev = 1; mi = rev_mod; fi = rev_filt; xi = rev_nocall; ci = cir;
+            isrev = 1; mi = rev_mod; fi = rev_filt; xi = rev_nocall; oi = rev_other; ci = cir;
             bases = (size_t *)revbases;
         }
         else {
@@ -341,6 +341,7 @@ void print_bedmethyl(
         size_t md = pileup->matrix[i * featlen + mi];
         size_t fd = pileup->matrix[i * featlen + fi];
         size_t xd = pileup->matrix[i * featlen + xi];
+        size_t od = pileup->matrix[i * featlen + oi];
 
         // choose output for this locus, the motifs are mutually exclusive so
         // no need to loop
@@ -352,7 +353,7 @@ void print_bedmethyl(
         }
         print_record(
             fout, pileup->rname, pos, pos + 1, feature, "+-"[isrev],
-            depth, extended, cd, md, fd, xd);
+            depth, extended, cd, md, fd, xd, od);
 
         // strand accumulated
         if (bed_files->accumulated && (is_cpg || is_chg)) {
@@ -369,7 +370,7 @@ void print_bedmethyl(
                 assert(fout != NULL);
                 bed_buffer buf = bed_files->out_buffer[ibuf];
                 if (buf.pos == -1) {
-                    bed_files->out_buffer[ibuf] = (bed_buffer){pos, isrev, depth, cd, md, fd, xd};
+                    bed_files->out_buffer[ibuf] = (bed_buffer){pos, isrev, depth, cd, md, fd, xd, od};
                 } else if (pos - buf.pos == motif_offset ) { // paired
                     assert(buf.isrev != isrev); // shouldn't happen, they can't be same
                     buf.depth += depth;
@@ -377,15 +378,16 @@ void print_bedmethyl(
                     buf.md += md;
                     buf.fd += fd;
                     buf.xd += xd;
+                    buf.od += od;
                     print_record(
                         fout, pileup->rname, buf.pos, buf.pos + motif_offset + 1, feature, '.',
-                        buf.depth, extended, buf.cd, buf.md, buf.fd, buf.xd);
-                    bed_files->out_buffer[ibuf] = (bed_buffer){-1, false, 0, 0, 0, 0, 0};
+                        buf.depth, extended, buf.cd, buf.md, buf.fd, buf.xd, buf.od);
+                    bed_files->out_buffer[ibuf] = (bed_buffer){-1, false, 0, 0, 0, 0, 0, 0};
                 } else { // unrelated
                     print_record(
                         fout, pileup->rname, buf.pos, buf.pos + 1, feature, "+-"[buf.isrev],
-                        buf.depth, extended, buf.cd, buf.md, buf.fd, buf.xd);
-                    bed_files->out_buffer[ibuf] = (bed_buffer){pos, isrev, depth, cd, md, fd, xd};
+                        buf.depth, extended, buf.cd, buf.md, buf.fd, buf.xd, buf.od);
+                    bed_files->out_buffer[ibuf] = (bed_buffer){pos, isrev, depth, cd, md, fd, xd, od};
                 }
             }
         }
@@ -469,6 +471,11 @@ plp_data calculate_pileup(
 
     static bool shown_second_strand_warning = false;
 
+    // counting mod calls other than the one asked for
+    int rev_in_family = rev_other;
+    int fwd_in_family = fwd_other;
+    if (combine) { rev_in_family = rev_mod; fwd_in_family = fwd_mod; }
+
     // setup bam reading
     size_t nfile = fsets->n;
     mplp_data **data = xalloc(fsets->n, sizeof(mplp_data*), "bam files");
@@ -536,13 +543,13 @@ plp_data calculate_pileup(
                 //  i) Guppy elided some low prob calls (as in the `.` mode)
                 // ii) callers which specialise to CpG (so don't have an entry for every C)
                 //
-                // To complicate things further we can have tags such as "C-m" indicating
+                // To complicate things further we can have tags such as "G-m" indicating
                 // methylation on the second strand of the sequenced read. Such tags ought
                 // not to occur without a corresponding "C+m" tag: in a simple case this
                 // would imply a caller had called methylation on the strand that wasn't
                 // sequenced but not on the strand that was sequenced. A more realistic
                 // situation would be making calls only on the second strands of duplex reads.
-                //
+                // 
                 // Here we simplify our lives by restricting to the case of skipping any
                 // such second strand tags, for the reasons above but also primarily
                 // because ideally the second strand tag should be jointly interpreted
@@ -569,13 +576,14 @@ plp_data calculate_pileup(
                     size_t n_mods = 256;
                     hts_base_mod_state *mod_state = p->cd.p;
                     hts_base_mod allmod[n_mods];
-                    int valid[n_mods]; size_t n_valid = 1;
-                    bool found = false; 
                     int nm = bam_mods_at_qpos(p->b, p->qpos, mod_state, allmod, n_mods);
                     if (nm < 0 ) continue;  // ignore reads which give error
                     hts_base_mod mod;
+                    int our_mod = -1;
+                    int best_mod = -1;
+                    int best_score = 0;
+                    int canon_score = MAX_QUAL;  // we subtract from this below
                     if (nm > 0) {
-                        // first find set of valid tags - those with correct canonical base
                         for (int k = 0; k < nm && k < n_mods; ++k) {
                             mod = allmod[k];
                             if (mod.strand == 1) {  // second strand tag
@@ -585,40 +593,40 @@ plp_data calculate_pileup(
                                 }
                                 continue;
                             }
+                            // our mod
                             if (mb.code == mod.modified_base || mb.code == -mod.modified_base) {
-                                valid[0] = k;
-                                found = true;
-                            }   
-                            else if (mod.canonical_base == mb.base) {
-                                valid[n_valid] = k;
-                                n_valid++;
-                                found = found || combine;
+                                our_mod = k;
+                            }
+                            // any mod in the family
+                            if (mod.canonical_base == mb.base) {
+                                if (mod.qual > best_score) { best_mod = k; best_score = mod.qual; }
+                                canon_score -= mod.qual;
                             }
                         }
-                        size_t kmin = found ? 0 : 1;
-                        size_t kmax = !combine ? 1 : n_valid;
-
-                        size_t modified = 0;
-                        size_t canonical = 0;
-                        size_t filtered = 0;
-                        for (int k = kmin; k < kmax; ++k) {
-                            mod = allmod[valid[k]];
-                            if (mod.qual > highthreshold) { modified++; }
-                            else if (mod.qual < lowthreshold) { canonical++; }
-                            else (filtered++);
+                    }
+                    
+                    // Now analyse scores. Note: ignoring the old lowthreshold here.
+                    if (best_mod != -1) {
+                        // we found some mods, lets not worry about funny mixes
+                        // of calls and no calls i.e. were assuming we have a call
+                        // for all the mods present (implicit non-mod doesn't matter here therefore).
+                        if (canon_score > highthreshold) { // implied canon score 
+                            base_i = num2countbase[bam_is_rev(p->b) ? base_j + 16 : base_j];
                         }
-                        if (modified > 0) { // modified trumps all
-                            base_i = bam_is_rev(p->b) ? rev_mod : fwd_mod;
+                        else if (best_mod == our_mod) { // the mod requested
+                            base_i = (best_score > highthreshold) ?
+                                (bam_is_rev(p->b) ? rev_mod : fwd_mod) :
+                                (bam_is_rev(p->b) ? rev_filt : fwd_filt);
                         }
-                        else if (canonical == (kmax - kmin)) { // all were canonical
-                            base_i = num2countbase[bam_is_rev(p->b) ? base_j + 16: base_j];
-                        }
-                        else { // ambiguous
-                            base_i = bam_is_rev(p->b) ? rev_filt : fwd_filt;
+                        else { // some other mod in the family
+                            base_i = (best_score > highthreshold) ?
+                                (bam_is_rev(p->b) ? rev_in_family : fwd_in_family) :  // either mod or other depending on combine
+                                (bam_is_rev(p->b) ? rev_filt : fwd_filt);
                         }
                     }
-                    if (found == false) {
-                        // No mod base subtag entry was found. In the case of explicit `?`
+                    else {
+                        // we didn't find any mods in the family
+                        // In the case of explicit `?`
                         // tag we should not assume canonical, otherwise we can.
                         // NOTE: we don't look for second strand `-` tags.
                         //       or a mess of `?` and `.` for alternative mods

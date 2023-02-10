@@ -45,6 +45,8 @@ static const mod_base default_mod_base = {"5-methylcytosine", "5mC", 'C', 2, 'm'
 //084C2A6E195D3B7F
 static int seqi_rc[] = { 0,8,4,12,2,10,6,14,1,9,5,13,3,11,7,15 };
 
+static const int MAX_QUAL = 255;
+
 /** Simple integer min/max
  * @param a
  * @param b
