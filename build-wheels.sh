@@ -10,13 +10,18 @@ shift
 echo "Changing cwd to ${workdir}"
 cd ${workdir}
 
-yum install -y zlib-devel bzip2 bzip2-devel xz-devel curl-devel openssl-devel ncurses-devel
+# some many linux containers are centos-based, others are debian!
+if [ -f /etc/centos-release ]; then
+    yum install -y zlib-devel bzip2 bzip2-devel xz-devel curl-devel openssl-devel ncurses-devel
+else
+    apt update
+    apt install -y zlib1g-dev libbz2-dev liblzma-dev libncurses5-dev libcurl4-gnutls-dev libssl-dev libffi-dev
+fi
 
 # downgrade autoconf to work more nicely with htslib
 curl -L -O http://ftp.gnu.org/gnu/autoconf/autoconf-2.69.tar.gz
 tar zxf autoconf-2.69.tar.gz
 cd autoconf-2.69
-yum install -y openssl-devel
 ./configure
 make && make install
 cd ..
@@ -33,7 +38,7 @@ ls /opt/python/
 
 # Compile wheels
 for minor in $@; do
-    if [[ "${minor}" == "8" ]]  || [[ "${minor}" == "9" ]]; then
+    if [[ "${minor}" == "8" ]]  || [[ "${minor}" == "9" ]] || [[ "${minor}" == "10" ]]; then
         PYBIN="/opt/python/cp3${minor}-cp3${minor}/bin"
     else
         PYBIN="/opt/python/cp3${minor}-cp3${minor}m/bin"
@@ -55,7 +60,7 @@ unset LD_LIBRARY_PATH
 
 ## Install packages
 for minor in $@; do
-    if [[ "${minor}" == "8" || "${minor}" == "9" ]]; then
+    if [[ "${minor}" == "8" ]]  || [[ "${minor}" == "9" ]] || [[ "${minor}" == "10" ]]; then
         PYBIN="/opt/python/cp3${minor}-cp3${minor}/bin"
     else
         PYBIN="/opt/python/cp3${minor}-cp3${minor}m/bin"
@@ -65,4 +70,5 @@ for minor in $@; do
     "${PYBIN}"/modbampy --pileup test_data/400ecoli.bam ecoli1 105000 105100
 done
 
-cd wheelhouse && ls | grep -v "${PACKAGE_NAME}.*manylinux" | xargs rm
+mkdir wheelhouse-final
+cp wheelhouse/${PACKAGE_FILE_NAME}*manylinux* wheelhouse-final

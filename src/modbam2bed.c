@@ -32,7 +32,7 @@ void *pileup_worker(void *arg) {
     plp_data pileup = calculate_pileup(
         files, j.chr, j.start, j.end,
         j.args.read_group, j.args.tag_name, j.args.tag_value,
-        j.args.lowthreshold, j.args.highthreshold, j.args.mod_base, j.args.combine,
+        j.args.threshold, j.args.mod_base, j.args.combine,
         j.args.hts_maxcnt);
     destroy_filesets(files);
     free(arg);
@@ -57,7 +57,7 @@ void process_region(arguments_t args, const char *chr, int start, int end, char 
     plp_data pileup = calculate_pileup(
         args.bam, chr, start, end,
         args.read_group, args.tag_name, args.tag_value,
-        args.lowthreshold, args.highthreshold, args.mod_base, args.combine,
+        args.threshold, args.mod_base, args.combine,
         args.hts_maxcnt);
     if (pileup == NULL) return;
 

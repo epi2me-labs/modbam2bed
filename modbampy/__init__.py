@@ -8,7 +8,7 @@ import numpy as np
 import libmodbampy
 
 # remember to bump version in src/version.h too
-__version__ = "0.8.0"
+__version__ = "0.9.0"
 ffi = libmodbampy.ffi
 libbam = libmodbampy.lib
 
@@ -143,8 +143,8 @@ class ModBam:
     def pileup(
             self, chrom, start, end,
             read_group=None, tag_name=None, tag_value=None,
-            low_threshold=0.33, high_threshold=0.66, mod_base="m",
-            max_depth=None, canon_base=None, combine=False):
+            low_threshold=0.33, high_threshold=0.66, threshold=0.66,
+            mod_base="m", max_depth=None, canon_base=None, combine=False):
         """Create a base count matrix.
 
         :param chrom: reference sequence from BAM.
@@ -153,10 +153,7 @@ class ModBam:
         :param read group: read group of read to return.
         :param tag_name: read tag to check during read filtering.
         :param tag_value: tag value for reads to keep.
-        :param low_threshold: threshold below which a base is determined as
-            not the modified base.
-        :param high_threshold: threshold above which a base is determined
-            to be the modified base.
+        :param threshold: probability filter threshold for excluding calls from counts.
         :param mod_base: ChEBI code of modified base to examine.
         :param max_depth: maximum read depth to examine.
         :param canon_base: canonical base corresponding to `mod_base`.
@@ -168,8 +165,9 @@ class ModBam:
         for thresh in (low_threshold, high_threshold):
             if thresh < 0.0 or thresh > 1.0:
                 raise ValueError("Thresholds should be in (0,1).")
-        low_threshold, high_threshold = (
-            int(x * 255.0) for x in (low_threshold, high_threshold))
+        threshold = int(threshold * 255.0)
+        # C code currently uses high_threshold as the only threshold
+        high_threshold = threshold
         read_group, tag_name, tag_value = _tidy_args(
             read_group, tag_name, tag_value)
 
@@ -182,7 +180,7 @@ class ModBam:
         plp_data = libbam.calculate_pileup(
             fsets, chrom.encode(), start, end,
             read_group, tag_name, tag_value,
-            low_threshold, high_threshold, mod_base.struct,
+            threshold, mod_base.struct,
             combine, max_depth)
         # TODO: check for NULL
 

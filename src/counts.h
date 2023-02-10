@@ -168,6 +168,6 @@ void print_bedmethyl(
 plp_data calculate_pileup(
     const set_fsets *fsets, const char *chr, int start, int end,
     const char *read_group, const char tag_name[2], const int tag_value,
-    int lowthreshold, int highthreshold, mod_base mb, bool combine, int max_depth);
+    int threshold, mod_base mb, bool combine, int max_depth);
 
 #endif

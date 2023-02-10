@@ -63,8 +63,11 @@ bld:api-test:
 
 deploy-checks:
     stage: prerelease
+    variables:
+        PACKAGE_NAME: modbampy
     script:
         - !reference [.check, argp-c-version]
+        - !reference [.check, python-version]
         - !reference [.check, changelog]
     rules:
         - if: '$CI_COMMIT_TAG =~ /^v[[:digit:]]+\.[[:digit:]]+\.[[:digit:]]+$/'
@@ -109,31 +112,45 @@ bld:py-sdist:
             - dist/*.tar.gz
 
 .many-linux: &many-linux-def
-  image: quay.io/pypa/manylinux2010_x86_64
-  stage: prerelease
-  artifacts:
-      paths:
-          - wheelhouse/*.whl
-
-bld:py-6:
-    <<: *many-linux-def
+    stage: prerelease
+    variables:
+        DO_COUNT_TEST: 1
     script:
-        - ./build-wheels.sh . 6
+        - echo "Building a Python ${PYWHEEL} wheel on manylinux_${FLAVOUR}"
+        - ./build-wheels.sh . ${PYWHEEL}
+    artifacts:
+        paths:
+            - wheelhouse-final/*.whl
+    only:
+        - tags
 
-bld:py-7:
-    <<: *many-linux-def
-    script:
-        - ./build-wheels.sh . 7
 
-bld:py-8:
-    <<: *many-linux-def
-    script:
-        - ./build-wheels.sh . 8
+make-wheels-2010:
+    extends: .many-linux
+    image: "quay.io/pypa/manylinux2010_x86_64"
+    parallel:
+        matrix:
+            - PYWHEEL: [7, 8]
+              FLAVOUR: ["2010"]
 
-bld:py-9:
-    <<: *many-linux-def
-    script:
-        - ./build-wheels.sh . 9
+
+make-wheels-2014:
+    extends: .many-linux
+    image: "quay.io/pypa/manylinux2014_x86_64"
+    parallel:
+        matrix:
+            - PYWHEEL: [7, 8, 9]
+              FLAVOUR: ["2014"]
+
+
+make-wheels-2_24:
+    extends: .many-linux
+    image: "quay.io/pypa/manylinux_2_24_x86_64"
+    parallel:
+        matrix:
+            - PYWHEEL: [8, 9, 10]
+              FLAVOUR: ["2_24"]
+
 
 deploy:pypi:
     stage: release
@@ -141,6 +158,6 @@ deploy:pypi:
         - *minimal-python
         - make pypi_build/bin/activate
         - source pypi_build/bin/activate
-        - twine upload --non-interactive dist/modbampy*.tar.gz wheelhouse/modbampy*.whl
+        - twine upload --non-interactive dist/modbampy*.tar.gz wheelhouse-final/modbampy*.whl
     rules:
         - if: '$CI_COMMIT_TAG =~ /^v[[:digit:]]+\.[[:digit:]]+\.[[:digit:]]+$/'

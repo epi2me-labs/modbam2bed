@@ -21,8 +21,7 @@ typedef struct arguments {
     bool extended;
     bool accumulated;
     int threads;
-    int lowthreshold;
-    int highthreshold;
+    int threshold;
     char* prefix;
     bool pileup;
     int hts_maxcnt;

@@ -104,7 +104,7 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state) {
             if (thresh < 0 || thresh > 1.0) {
                 argp_error (state, "Threshold parameter must be in (0,1), got %s", arg);
             }
-            arguments->highthreshold = (int)(thresh * 255);
+            arguments->threshold = (int)(thresh * 255);
             break;
         case 'm':
             for (size_t i = 0; i < n_mod_bases; ++i) {
@@ -215,8 +215,7 @@ arguments_t parse_arguments(int argc, char** argv) {
     arguments_t args;
     args.mod_base = default_mod_base;
     args.combine = false;
-    args.lowthreshold = -1;
-    args.highthreshold = (int)(0.66 * MAX_QUAL);
+    args.threshold = (int)(0.66 * MAX_QUAL);
     args.bam = NULL;
     args.ref = NULL;
     args.region = NULL;
@@ -250,10 +249,6 @@ arguments_t parse_arguments(int argc, char** argv) {
     }
     if (tag_given && hp_given) {
         fprintf(stderr, "ERROR: If --haplotype is given neither of --tag_name or --tag_value should be provided.\n");
-        exit(1);
-    }
-    if (args.highthreshold < args.lowthreshold) {
-        fprintf(stderr, "ERROR: --highthreshold must be larger than --lowthreshold\n");
         exit(1);
     }
     if (strncmp("5mC", args.mod_base.abbrev, 3) == 0 || strncmp("5hmC", args.mod_base.abbrev, 4)) {

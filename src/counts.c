@@ -455,8 +455,7 @@ bool query_mod_subtag(hts_base_mod_state *state, int qtype, int qcanonical, char
  *  @param read_group by which to filter alignments.
  *  @param tag_name by which to filter alignments.
  *  @param tag_value associated with tag_name
- *  @param lowthreshold highest probability to call base as canonical.
- *  @param highthreshold lowest probablity to call base as modified.
+ *  @param threshold probability filter for excluding calls from counts.
  *  @param mb BAM code for modified base to report. (e.g. h for 5hmC), or a ChEBI code.
  *  @param combine combine all modified bases corresponding to same canonical base as mb
  *  @returns a pileup data pointer.
@@ -467,7 +466,7 @@ bool query_mod_subtag(hts_base_mod_state *state, int qtype, int qcanonical, char
 plp_data calculate_pileup(
         const set_fsets *fsets, const char *chr, int start, int end,
         const char *read_group, const char tag_name[2], const int tag_value,
-        int lowthreshold, int highthreshold, mod_base mb, bool combine, int max_depth) {
+        int threshold, mod_base mb, bool combine, int max_depth) {
 
     static bool shown_second_strand_warning = false;
 
@@ -610,16 +609,16 @@ plp_data calculate_pileup(
                         // we found some mods, lets not worry about funny mixes
                         // of calls and no calls i.e. were assuming we have a call
                         // for all the mods present (implicit non-mod doesn't matter here therefore).
-                        if (canon_score > highthreshold) { // implied canon score 
+                        if (canon_score > threshold) { // implied canon score 
                             base_i = num2countbase[bam_is_rev(p->b) ? base_j + 16 : base_j];
                         }
                         else if (best_mod == our_mod) { // the mod requested
-                            base_i = (best_score > highthreshold) ?
+                            base_i = (best_score > threshold) ?
                                 (bam_is_rev(p->b) ? rev_mod : fwd_mod) :
                                 (bam_is_rev(p->b) ? rev_filt : fwd_filt);
                         }
                         else { // some other mod in the family
-                            base_i = (best_score > highthreshold) ?
+                            base_i = (best_score > threshold) ?
                                 (bam_is_rev(p->b) ? rev_in_family : fwd_in_family) :  // either mod or other depending on combine
                                 (bam_is_rev(p->b) ? rev_filt : fwd_filt);
                         }
