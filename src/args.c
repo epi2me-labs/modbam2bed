@@ -53,10 +53,12 @@ static struct argp_option options[] = {
         "Output (full) raw base counts rather than BED file."},
     {0, 0, 0, 0,
         "Base filtering options:"},
-    {"threshold", 'a', "THRESHOLD", 0,
-        "Deprecated, the value of this option is ignored.", 2},
-    {"threshold", 'b', "THRESHOLD", 0,
-        "Bases with a call probability < THRESHOLD are filtered from results(default 0.66).", 2},
+    {"canon_threshold", 'a', "THRESHOLD", 0,
+        "Deprecated. The option will be removed in a future version. Please use --threshold.", 2},
+    {"mod_threshold", 'b', "THRESHOLD", 0,
+        "Deprecated. The option will be removed in a future version. Please use --threshold.", 2},
+    {"threshold", 'f', "THRESHOLD", 0,
+        "Bases with a call probability < THRESHOLD are filtered from results (default 0.66).", 2},
     {"cpg", 0x700, 0, 0,
         "Output records filtered to CpG sites.", 2},
     {"chh", 0x400, 0, 0,
@@ -94,14 +96,10 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state) {
     bool found = false;
     switch (key) {
         case 'a':
-            thresh = atof(arg);
-            if (thresh < 0 || thresh > 1.0) {
-                argp_error (state, "Threshold parameter must be in (0,1), got %s", arg);
-            }
-            fprintf(stderr, "Option `-a` is deprecated, its value will be ignored. Please use only `-b`. This option will be removed in a future version.");
-            arguments->lowthreshold = (int)(thresh * 255);
-            break;
         case 'b':
+            argp_error (state, "Options `-a` and `-b` are deprecated, Please use only `-f`. These option will be removed in a future version.\n");
+            break;
+        case 'f':
             thresh = atof(arg);
             if (thresh < 0 || thresh > 1.0) {
                 argp_error (state, "Threshold parameter must be in (0,1), got %s", arg);
@@ -217,7 +215,7 @@ arguments_t parse_arguments(int argc, char** argv) {
     arguments_t args;
     args.mod_base = default_mod_base;
     args.combine = false;
-    args.lowthreshold = (int)(0.33 * MAX_QUAL);
+    args.lowthreshold = -1;
     args.highthreshold = (int)(0.66 * MAX_QUAL);
     args.bam = NULL;
     args.ref = NULL;

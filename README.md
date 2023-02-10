@@ -38,14 +38,23 @@ refer to the program `--help` option for the most accurate guidance.
 
 ```
 Usage: modbam2bed [OPTION...] <reference.fasta> <reads.bam> [<reads.bam> ...]
-modbam2bed -- summarise one or more BAM with modified base tags to bedMethyl.
+modbam2bed -- summarise one or more BAM with modified base tags to bedMethyl. 
 
  General options:
+      --aggregate            Output additional aggregated (across strand)
+                             counts, requires --cpg or --chg.
+      --combine              Create output with combined modified counts: i.e.
+                             alternative modified bases within the same family
+                             (same canonical base) are included.
+  -c, --pileup               Output (full) raw base counts rather than BED
+                             file.
   -e, --extended             Output extended bedMethyl including counts of
                              canonical, modified, and filtered bases (in that
                              order).
   -m, --mod_base=BASE        Modified base of interest, one of: 5mC, 5hmC, 5fC,
-                             5caC, 5hmU, 5fU, 5caU, 6mA, 5oxoG, Xao.
+                             5caC, 5hmU, 5fU, 5caU, 6mA, 5oxoG, Xao. (Or modA,
+                             modC, modG, modT, modU, modN for generic modified
+                             base).
   -p, --prefix=PREFIX        Output file prefix. Only used when multiple output
                              filters are given.
   -r, --region=chr:start-end Genomic region to process.
@@ -53,15 +62,15 @@ modbam2bed -- summarise one or more BAM with modified base tags to bedMethyl.
 
  Base filtering options:
   -a, --canon_threshold=THRESHOLD
-                             Bases with mod. probability < THRESHOLD are
-                             counted as canonical (default 0.33).
-      --aggregated           Output additional aggregated (across strand)
-                             counts, requires --cpg or --chg.
-  -b, --mod_threshold=THRESHOLD   Bases with mod. probability > THRESHOLD are
-                             counted as modified (default 0.66).
-      --cpg                  Output records filtered to CpG sites.
+                             Deprecated. The option will be removed in a future
+                             version. Please use --threshold.
+  -b, --mod_threshold=THRESHOLD   Deprecated. The option will be removed in a
+                             future version. Please use --threshold.
       --chg                  Output records filtered to CHG sites.
       --chh                  Output records filtered to CHH sites.
+      --cpg                  Output records filtered to CpG sites.
+  -f, --threshold=THRESHOLD  Bases with a call probability < THRESHOLD are
+                             filtered from results (default 0.66).
   -k, --mask                 Respect soft-masking in reference file.
 
  Read filtering options:
@@ -77,6 +86,9 @@ modbam2bed -- summarise one or more BAM with modified base tags to bedMethyl.
   -?, --help                 Give this help list
       --usage                Give a short usage message
   -V, --version              Print program version
+
+Mandatory or optional arguments to long options are also mandatory or optional
+for any corresponding short options.
 ```
 
 ### Method and output format

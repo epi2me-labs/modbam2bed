@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   enumerate counts of other cytosine modifications present. When using the
   option `--combine` this column will contain zero (the counts being included
   in the modified base count).
+- `--theshold` option to replace both `-a` and `-b`.
 ### Fixed
 - In line with the "other" column, when not using the `--combine` option
   the potential presence of other modifications in the same family of the
@@ -18,8 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   some previously erroneous "canonical/non-modified" calls to "other" and
   "filtered" counts.
 ### Removed
-- The option `-a` is deprecated and its value is ignored. Use only `-b` to
-  specify a call filter threshold.
+- The options `-a` and `-b` are deprecated. Instead use `--threshold`.
 
 ## [v0.8.0]
 ### Added
