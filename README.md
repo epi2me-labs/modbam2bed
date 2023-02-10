@@ -156,7 +156,7 @@ bases to agree with reasonable interpretations of the bedMethyl specifications:
    were filtered from the calculation of the modification frequency.
  * N<sub>sub</sub> - count of reads with a substitution with respect to the reference.
  * N<sub>del</sub> - count of reads with a deletion with respect to the reference.
- * N<sub>nocall</sub> - counts of reads with an absent modification call (but not a substitution or deletion).
+ * N<sub>no call</sub> - counts of reads with an absent modification call (but not a substitution or deletion).
  * N<sub>alt mod</sub> - counts of reads with and alternative modification call (but not a substitution or deletion).
 
 Since these interpretations may differ from other tools an extended output is
