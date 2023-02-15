@@ -59,6 +59,7 @@ bld:api-test:
         - *prep-image
         - *minimal-python
         - make test_api
+        - make test_python
 
 
 deploy-checks:

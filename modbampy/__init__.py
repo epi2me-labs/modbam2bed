@@ -8,7 +8,7 @@ import numpy as np
 import libmodbampy
 
 # remember to bump version in src/version.h too
-__version__ = "0.9.0"
+__version__ = "0.9.1"
 ffi = libmodbampy.ffi
 libbam = libmodbampy.lib
 
@@ -49,8 +49,9 @@ class ModBase:
     """
 
     def __init__(self, code, base=None, name="unknown", abbrev="unknown"):
+        """Initialise the instance."""
         self._name = ffi.new("char[]", name.encode())
-        self._abbrev= ffi.new("char[]", abbrev.encode())
+        self._abbrev = ffi.new("char[]", abbrev.encode())
         self._base = base
         err = TypeError(
             "'base' should be a single character or None")
@@ -58,7 +59,7 @@ class ModBase:
             if len(self._base) != 1:
                 raise err
             self._base = base.encode()
-            self._base_i = {"A":1, "C":2, "G":4, "T":8}[base]
+            self._base_i = {"A": 1, "C": 2, "G": 4, "T": 8}[base]
         elif self._base is not None:
             raise err
 
@@ -76,6 +77,7 @@ class ModBase:
 
     @property
     def struct(self):
+        """Return a list compatible with C structure."""
         for i in range(libbam.n_mod_bases):
             if libbam.mod_bases[i].code == self._code:
                 return libbam.mod_bases[i]
@@ -114,7 +116,7 @@ class ModBam:
 
     def reads(
             self, chrom, start, end,
-            read_group=None, tag_name=None, tag_value=None):
+            read_group=None, tag_name=None, tag_value=None, min_mapq=0):
         """Iterate over (filtered) alignments in file.
 
         :param chrom: reference sequence from BAM.
@@ -123,6 +125,7 @@ class ModBam:
         :param read group: read group of read to return.
         :param tag_name: read tag to check during read filtering.
         :param tag_value: tag value for reads to keep.
+        :param min_mapq: minimum read mapping quality.
         """
         read_group, tag_name, tag_value = _tidy_args(
             read_group, tag_name, tag_value)
@@ -130,7 +133,7 @@ class ModBam:
         data = ffi.gc(
             libbam.create_bam_iter_data(
                 self._bam_fset, chrom.encode(), start, end,
-                read_group, tag_name, tag_value),
+                read_group, tag_name, tag_value, min_mapq),
             libbam.destroy_bam_iter_data)
         mod_state = ffi.gc(
             libbam.hts_base_mod_state_alloc(),
@@ -144,7 +147,8 @@ class ModBam:
             self, chrom, start, end,
             read_group=None, tag_name=None, tag_value=None,
             low_threshold=0.33, high_threshold=0.66, threshold=0.66,
-            mod_base="m", max_depth=None, canon_base=None, combine=False):
+            mod_base="m", max_depth=None, canon_base=None, combine=False,
+            min_mapq=0):
         """Create a base count matrix.
 
         :param chrom: reference sequence from BAM.
@@ -153,14 +157,16 @@ class ModBam:
         :param read group: read group of read to return.
         :param tag_name: read tag to check during read filtering.
         :param tag_value: tag value for reads to keep.
-        :param threshold: probability filter threshold for excluding calls from counts.
+        :param threshold: probability filter threshold for excluding
+            calls from counts.
         :param mod_base: ChEBI code of modified base to examine.
         :param max_depth: maximum read depth to examine.
         :param canon_base: canonical base corresponding to `mod_base`.
-            Required only if `mod_base is not a modification known to
+            Required only if `mod_base` is not a modification known to
             the code.
         :param combine: combine (include) all alternative modifications
             with the same parent canonical base.
+        :param min_mapq: minimum read mapping quality.
         """
         for thresh in (low_threshold, high_threshold):
             if thresh < 0.0 or thresh > 1.0:
@@ -181,7 +187,7 @@ class ModBam:
             fsets, chrom.encode(), start, end,
             read_group, tag_name, tag_value,
             threshold, mod_base.struct,
-            combine, max_depth)
+            combine, max_depth, min_mapq)
         # TODO: check for NULL
 
         # copy data to numpy, we could be more clever here an wrap

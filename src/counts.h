@@ -160,6 +160,7 @@ void print_bedmethyl(
  *  @param mod_base a mod_base instance
  *  @param combine combine all modified bases corresponding to same canonical base as mb
  *  @param max_depth maximum depth of pileup.
+ *  @param min_mapQ
  *  @returns a pileup data pointer.
  *
  *  The return value can be freed with destroy_plp_data.
@@ -168,6 +169,6 @@ void print_bedmethyl(
 plp_data calculate_pileup(
     const set_fsets *fsets, const char *chr, int start, int end,
     const char *read_group, const char tag_name[2], const int tag_value,
-    int threshold, mod_base mb, bool combine, int max_depth);
+    int threshold, mod_base mb, bool combine, int max_depth, int min_mapQ);
 
 #endif
