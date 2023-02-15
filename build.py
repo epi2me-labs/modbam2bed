@@ -82,7 +82,7 @@ cdef = ["""
 
     mplp_data *create_bam_iter_data(
         const bam_fset* fset, const char *chr, int start, int end,
-        const char *read_group, const char tag_name[2], const int tag_value);
+        const char *read_group, const char tag_name[2], const int tag_value, const int min_mapq);
     void destroy_bam_iter_data(mplp_data *data);
     // iterate a file
     int read_bam(void *data, bam1_t *b);

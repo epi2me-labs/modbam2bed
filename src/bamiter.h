@@ -52,13 +52,15 @@ void destroy_filesets(set_fsets *s);
  *  @param read_group by which to filter alignments.
  *  @param tag_name by which to filter alignments.
  *  @param tag_value associated with tag_name.
+ *  @param min_mapQ minimum mapping quality of reads.
  *
  *  The return value can be freed with destroy_bam_iter_data.
  *
  */
 mplp_data *create_bam_iter_data(
     const bam_fset* fset, const char *chr, int start, int end,
-    const char *read_group, const char tag_name[2], const int tag_value);
+    const char *read_group, const char tag_name[2], const int tag_value,
+    const int min_mapQ);
 
 /** Clean up auxiliary bam reading data.
  *

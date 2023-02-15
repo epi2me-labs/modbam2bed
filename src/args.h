@@ -25,6 +25,7 @@ typedef struct arguments {
     char* prefix;
     bool pileup;
     int hts_maxcnt;
+    int min_mapQ;
 } arguments_t;
 
 arguments_t parse_arguments(int argc, char** argv);

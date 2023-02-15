@@ -79,6 +79,8 @@ static struct argp_option options[] = {
         "Only process reads with a given tag value.", 3},
     {"haplotype", 0x300, "VAL", 0,
         "Only process reads from a given haplotype. Equivalent to --tag_name HP --tag_value VAL.", 3},
+    {"map_q", 0x900, "QUAL", 0,
+        "Filter reads below this mapping quality.", 3},
     { 0 }
 };
 
@@ -169,6 +171,9 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state) {
             tag_items += 2;
             hp_given = true;
             break;
+        case 0x900:
+            arguments->min_mapQ = atoi(arg);
+            break;
         case 't':
             arguments->threads = atoi(arg);
             break;
@@ -232,6 +237,7 @@ arguments_t parse_arguments(int argc, char** argv) {
     args.prefix = "mod-counts";
     args.pileup = false;
     args.hts_maxcnt = INT_MAX;
+    args.min_mapQ = 0;
     argp_parse(&argp, argc, argv, 0, 0, &args);
     // allow CpG only for C!
     if (args.cpg || args.chh || args.chg) {

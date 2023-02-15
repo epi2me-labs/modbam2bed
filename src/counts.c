@@ -458,6 +458,8 @@ bool query_mod_subtag(hts_base_mod_state *state, int qtype, int qcanonical, char
  *  @param threshold probability filter for excluding calls from counts.
  *  @param mb BAM code for modified base to report. (e.g. h for 5hmC), or a ChEBI code.
  *  @param combine combine all modified bases corresponding to same canonical base as mb
+ *  @param max_depth maximum depth of pileup.
+ *  @param min_mapQ minimum mapping quality of reads.
  *  @returns a pileup data pointer.
  *
  *  The return value can be freed with destroy_plp_data.
@@ -466,7 +468,7 @@ bool query_mod_subtag(hts_base_mod_state *state, int qtype, int qcanonical, char
 plp_data calculate_pileup(
         const set_fsets *fsets, const char *chr, int start, int end,
         const char *read_group, const char tag_name[2], const int tag_value,
-        int threshold, mod_base mb, bool combine, int max_depth) {
+        int threshold, mod_base mb, bool combine, int max_depth, int min_mapQ) {
 
     static bool shown_second_strand_warning = false;
 
@@ -480,7 +482,7 @@ plp_data calculate_pileup(
     mplp_data **data = xalloc(fsets->n, sizeof(mplp_data*), "bam files");
     for (size_t i = 0; i < nfile; ++i) {
         data[i] = create_bam_iter_data(
-            fsets->fsets[i], chr, start, end, read_group, tag_name, tag_value);
+            fsets->fsets[i], chr, start, end, read_group, tag_name, tag_value, min_mapQ);
         if (data[i] == NULL) {
             // TODO: clean-up all j<i data[i], and free data
             return NULL;

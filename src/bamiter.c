@@ -70,7 +70,8 @@ void destroy_filesets(set_fsets *s) {
  */
 mplp_data *create_bam_iter_data(
         const bam_fset* bam_set, const char *chr, int start, int end,
-        const char *read_group, const char tag_name[2], const int tag_value) {
+        const char *read_group, const char tag_name[2], const int tag_value,
+        const int min_mapQ) {
 
     // open bam etc.
     // this is all now deferred to the caller
@@ -96,7 +97,7 @@ mplp_data *create_bam_iter_data(
     data->fp = fp; data->idx = idx; data->hdr = hdr;
     data->iter = bam_itr_queryi(idx, mytid, start, end);
     memcpy(data->tag_name, tag_name, 2); data->tag_value = tag_value;
-    data->min_mapQ = 1; data->read_group = read_group;
+    data->min_mapQ = min_mapQ; data->read_group = read_group;
 
     return data;
 }
