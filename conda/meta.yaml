@@ -29,7 +29,7 @@ requirements:
           # - libdeflate
           # - openssl  # [not osx]
     run:
-        - bioconda::htslib>=1.16
+        - bioconda::htslib==1.16
           # - libcurl
           # - bzip2
           # - xz
