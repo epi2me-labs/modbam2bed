@@ -74,26 +74,42 @@ deploy-checks:
         - if: '$CI_COMMIT_TAG =~ /^v[[:digit:]]+\.[[:digit:]]+\.[[:digit:]]+$/'
 
 
+.before-script: &before-script |
+    export CONDA_PKG=${CI_PROJECT_NAME}
+    export CONDA_PKG_VERSION=${CI_COMMIT_TAG/v/}
+    mkdir conda-build
+    cd conda-build
+
+
 conda:
     extends: .deploy-conda-linux
     variables:
         RECIPEPATH: "../conda"
     before_script:
         - *prep-image
-        - export CONDA_PKG=${CI_PROJECT_NAME}
-        - export CONDA_PKG_VERSION=${CI_COMMIT_TAG/v/}
-        - mkdir conda-build
-        - cd conda-build
+        - *before-script
+
+conda-arm:
+    extends: .deploy-conda-linux-arm
+    variables:
+        RECIPEPATH: "../conda"
+    before_script:
+        - *prep-image
+        - *before-script
 
 conda-mac:
     extends: .deploy-conda-mac
     variables:
         RECIPEPATH: "../conda"
     before_script:
-        - export CONDA_PKG=${CI_PROJECT_NAME}
-        - export CONDA_PKG_VERSION=${CI_COMMIT_TAG/v/}
-        - mkdir conda-build
-        - cd conda-build
+        - *before-script
+
+conda-mac-arm:
+    extends: .deploy-conda-mac-arm
+    variables:
+        RECIPEPATH: "../conda"
+    before_script:
+        - *before-script
 
 ### Python
 
