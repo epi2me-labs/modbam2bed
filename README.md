@@ -1,5 +1,15 @@
 ![Oxford Nanopore Technologies logo](https://github.com/epi2me-labs/modbam2bed/raw/master/images/ONT_logo_590x106.png)
 
+
+We have a new bioinformatic resource that replaces the functionality of this project! See our new repository here: 
+[modkit](https://github.com/nanoporetech/modkit/).
+
+This repository is now unsupported and we do not recommend its use. Please contact Oxford Nanopore: support@nanoporetech.com for help with your application if it is not possible to upgrade.
+
+
+******************
+
+
 Modified-base BAM to bedMethyl
 ------------------------------
 
