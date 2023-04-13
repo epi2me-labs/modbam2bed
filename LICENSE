@@ -4,39 +4,39 @@ Oxford Nanopore Technologies PLC. Public License Version 1.0
 1. Definitions
 --------------
 
-1.1. “Contributor”
+1.1. "Contributor"
     means each individual or legal entity that creates, contributes to
     the creation of, or owns Covered Software.
 
-1.2. “Contributor Version”
+1.2. "Contributor Version"
     means the combination of the Contributions of others (if any) used
     by a Contributor and that particular Contributor’s Contribution.
 
-1.3. “Contribution”
+1.3. "Contribution"
     means Covered Software of a particular Contributor.
 
-1.4. “Covered Software”
+1.4. "Covered Software"
     means Source Code Form to which the initial Contributor has attached
     the notice in Exhibit A, the Executable Form of such Source Code
     Form, and Modifications of such Source Code Form, in each case
     including portions thereof.
 
-1.5. “Executable Form”
+1.5. "Executable Form"
     means any form of the work other than Source Code Form.
 
-1.6. “Larger Work”
+1.6. "Larger Work"
     means a work that combines Covered Software with other material, in
     a separate file or files, that is not Covered Software.
 
-1.7. “License”
+1.7. "License"
     means this document.
 
-1.8. “Licensable”
+1.8. "Licensable"
     means having the right to grant, to the maximum extent possible,
     whether at the time of the initial grant or subsequently, any and
     all of the rights conveyed by this License.
 
-1.9. “Modifications”
+1.9. "Modifications"
     means any of the following:
 
     (a)	  any file in Source Code Form that results from an addition to,
@@ -45,26 +45,26 @@ Oxford Nanopore Technologies PLC. Public License Version 1.0
     (b)   any new file in Source Code Form that contains any Covered
           Software.
 
-1.10. “Research Purposes”
+1.10. "Research Purposes"
     means use for internal research and not intended for or directed
     towards commercial advantages or monetary compensation; provided,
     however, that monetary compensation does not include sponsored
     research of research funded by grants.
 
-1.11  “Secondary License”
+1.11  "Secondary License"
     means either the GNU General Public License, Version 2.0, the GNU
     Lesser General Public License, Version 2.1, the GNU Affero General
     Public License, Version 3.0, or any later versions of those
     licenses.
 
-1.12. “Source Code Form”
+1.12. "Source Code Form"
     means the form of the work preferred for making modifications.
 
-1.13. “You” (or “Your”)
+1.13. "You" (or "Your")
     means an individual or a legal entity exercising rights under this
-    License. For legal entities, “You” includes any entity that
+    License. For legal entities, "You" includes any entity that
     controls, is controlled by, or is under common control with You. For
-    purposes of this definition, “control” means (a) the power, direct
+    purposes of this definition, "control" means (a) the power, direct
     or indirect, to cause the direction or management of such entity,
     whether by contract or otherwise, or (b) ownership of more than
     fifty percent (50%) of the outstanding shares or beneficial
@@ -223,7 +223,7 @@ prior to termination shall survive termination.
 *  6. Disclaimer of Warranty                                           *
 *  -------------------------                                           *
 *                                                                      *
-*  Covered Software is provided under this License on an “as is”       *
+*  Covered Software is provided under this License on an "as is"       *
 *  basis, without warranty of any kind, either expressed, implied, or  *
 *  statutory, including, without limitation, warranties that the       *
 *  Covered Software is free of defects, merchantable, fit for a        *
