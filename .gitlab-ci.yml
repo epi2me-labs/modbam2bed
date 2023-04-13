@@ -1,10 +1,9 @@
 include:
     - project: "epi2melabs/ci-templates"
-      file: "push-github.yaml"
-    - project: "epi2melabs/ci-templates"
-      file: "push-conda.yaml"
-    - project: "epi2melabs/ci-templates"
-      file: "snippets.yaml"
+      file:
+          - "push-github.yaml"
+          - "push-conda.yaml"
+          - "snippets.yaml"
 
 image: ${UBUNTUIMAGE}:20.04
 
@@ -28,26 +27,12 @@ stages:
     - release
 
 
-# Insist that the version in __init__.py matches the git tag
-# note: don't use snippet here because that uses ${CI_PROJECT_NAME}
-.check-py-versions: &check-py-versions |
-    PYVER="v"$(grep "__version__ = " modbampy/__init__.py | awk '{gsub("\"","",$3); print $3}')
-    TAGVER=${CI_COMMIT_TAG}
-    if [[ "${PYVER}" != "${TAGVER}" ]]; then
-        echo "Mismatching TAG and PACKAGE versions:"
-        echo " -     TAG:'$PYVER'"
-        echo " - PACKAGE:'$TAGVER'"
-        exit 1
-    else
-        echo "TAG and PACKAGE versions agree: '${PYVER}'"
-    fi
-
-
 bld:program:
     stage: test
     before_script:
         - *prep-image
     script:
+        - !reference [.check, license]
         - make modbam2bed
         - ./modbam2bed --help
         - make mem_check
@@ -70,6 +55,7 @@ deploy-checks:
         - !reference [.check, argp-c-version]
         - !reference [.check, python-version]
         - !reference [.check, changelog]
+        - !reference [.check, license]
     rules:
         - if: '$CI_COMMIT_TAG =~ /^v[[:digit:]]+\.[[:digit:]]+\.[[:digit:]]+$/'
 
