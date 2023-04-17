@@ -84,7 +84,7 @@ modbam2bed: modbam2bed.o common.o counts.o bamiter.o args.o $(STATIC_HTSLIB)
 
 .PHONY: clean
 clean: clean_obj clean_htslib
-	rm -rf modbam2bed
+	rm -rf modbam2bed modbampy.egg-info pymod.a  venv obj
 
 .PHONY: mem_check
 mem_check: modbam2bed
@@ -106,7 +106,7 @@ IN_VENV=. ./${VENV}/bin/activate
 
 $(VENV)/bin/activate:
 	test -d $(VENV) || $(PYTHON) -m venv $(VENV) --prompt "modbam"
-	${IN_VENV} && pip install pip --upgrade
+	${IN_VENV} && pip install pip==23.0.1 --upgrade
 	${IN_VENV} && pip install setuptools
 
 .PHONY: python
