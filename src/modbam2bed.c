@@ -52,7 +52,7 @@ void *pileup_worker(void *arg) {
 #ifdef NOTHREADS
 void process_region(arguments_t args, const char *chr, int start, int end, char *ref, output_files bed_files) {
     fprintf(stderr, "Processing: %s:%d-%d\n", chr, start, end);
-    set_fsets* files = create_filesets(j.args.bam);
+    set_fsets* files = create_filesets(args.bam);
     if (files == NULL) return;
     plp_data pileup = calculate_pileup(
         args.bam, chr, start, end,
