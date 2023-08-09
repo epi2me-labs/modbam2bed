@@ -55,7 +55,7 @@ void process_region(arguments_t args, const char *chr, int start, int end, char 
     set_fsets* files = create_filesets(args.bam);
     if (files == NULL) return;
     plp_data pileup = calculate_pileup(
-        args.bam, chr, start, end,
+        files, chr, start, end,
         args.read_group, args.tag_name, args.tag_value,
         args.threshold, args.mod_base, args.combine,
         args.hts_maxcnt, args.min_mapQ);
