@@ -25,7 +25,6 @@ class MotifTest(unittest.TestCase):
                     n_mods += 1
         assert n_mods == 3259
 
-
     def test_010_tag_parse(self):
         with ModBam(tag_codes_bam) as bam:
             for r in bam.reads("ecoli1", 0, 4000000):
@@ -47,3 +46,8 @@ class MotifTest(unittest.TestCase):
                 bam.pileup("ecoli1", 0, 4000000, mod_base=27551)
             bam.pileup("ecoli1", 0, 4000000, mod_base=27551, canon_base="C")
 
+    def test_030_pythonic(self):
+        with ModBam(test_bam) as bam:
+            reads = list(bam.reads("ecoli1", 0, 4000000))
+        qnames = set(x.query_name for x in reads)
+        assert(len(qnames) > 1)

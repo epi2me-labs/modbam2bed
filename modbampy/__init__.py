@@ -8,7 +8,7 @@ import numpy as np
 import libmodbampy
 
 # remember to bump version in src/version.h too
-__version__ = "0.9.5"
+__version__ = "0.10.0"
 ffi = libmodbampy.ffi
 libbam = libmodbampy.lib
 
@@ -213,8 +213,12 @@ class ModRead:
     """
 
     def __init__(self, bam1_t, mod_state, header=None):
-        """Create an interface to alignment."""
-        self._bam1_t = bam1_t
+        """Create an interface to alignment.
+
+        The input alignment is copied.
+        """
+        self._bam1_t = ffi.gc(libbam.bam_init1(), libbam.bam_destroy1)
+        libbam.bam_copy1(self._bam1_t, bam1_t)
         self._mod_state = mod_state
         self._header = header
 

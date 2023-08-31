@@ -67,6 +67,7 @@ cdef = ["""
 
     bam1_t *bam_init1();
     void bam_destroy1(bam1_t *b);
+    bam1_t *bam_copy1(bam1_t *bdst, const bam1_t *bsrc);
     typedef struct mplp_data {...;} mplp_data;
 
     // opening bam with idx and hdr info
