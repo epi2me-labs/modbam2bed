@@ -14,6 +14,10 @@ cd ${workdir}
 if [ -f /etc/centos-release ]; then
     yum install -y zlib-devel bzip2 bzip2-devel xz-devel curl-devel openssl-devel ncurses-devel
 else
+    # https://stackoverflow.com/questions/76094428/debian-stretch-repositories-404-not-found
+    sed -i -e 's/deb.debian.org/archive.debian.org/g' \
+           -e 's|security.debian.org|archive.debian.org/|g' \
+           -e '/stretch-updates/d' /etc/apt/sources.list
     apt update
     apt install -y zlib1g-dev libbz2-dev liblzma-dev libncurses5-dev libcurl4-gnutls-dev libssl-dev libffi-dev
 fi
