@@ -1,6 +1,6 @@
 #!/bin/bash
 # Usage: ./build-wheels.sh <workdir> <pyminorversion1> <pyminorversion2> ...
-set -e -x
+set -eux
 
 PACKAGE_NAME=modbampy
 
@@ -75,4 +75,4 @@ for minor in $@; do
 done
 
 mkdir wheelhouse-final
-cp wheelhouse/${PACKAGE_FILE_NAME}*manylinux* wheelhouse-final
+cp wheelhouse/${PACKAGE_NAME}*manylinux* wheelhouse-final
