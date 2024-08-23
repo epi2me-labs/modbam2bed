@@ -130,11 +130,13 @@ class ModBam:
         read_group, tag_name, tag_value = _tidy_args(
             read_group, tag_name, tag_value)
 
-        data = ffi.gc(
-            libbam.create_bam_iter_data(
+        it = libbam.create_bam_iter_data(
                 self._bam_fset, chrom.encode(), start, end,
-                read_group, tag_name, tag_value, min_mapq),
-            libbam.destroy_bam_iter_data)
+                read_group, tag_name, tag_value, min_mapq)
+        if it == ffi.NULL:
+            return
+
+        data = ffi.gc(it, libbam.destroy_bam_iter_data)
         mod_state = ffi.gc(
             libbam.hts_base_mod_state_alloc(),
             libbam.hts_base_mod_state_free)

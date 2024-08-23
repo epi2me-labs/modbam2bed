@@ -51,3 +51,8 @@ class MotifTest(unittest.TestCase):
             reads = list(bam.reads("ecoli1", 0, 4000000))
         qnames = set(x.query_name for x in reads)
         assert(len(qnames) > 1)
+
+    def test_040_nonexisting_chrom(self):
+        with ModBam(test_bam) as bam:
+            reads = list(bam.reads("ecoli1xx", 0, 4000000))
+        assert(reads == [])
