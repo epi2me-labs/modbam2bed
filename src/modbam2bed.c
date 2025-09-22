@@ -17,24 +17,31 @@
 #include "args.h"
 
 
+
+
 typedef struct twarg {
     arguments_t args;
     const char *chr;
     int start;
     int end;
+    const char *ref;
+    fspool *pool;
 } twarg;
 
 
 void *pileup_worker(void *arg) {
     twarg j = *(twarg *)arg;
-    set_fsets *files = create_filesets(j.args.bam);
+    set_fsets *files = fspool_acquire(j.pool);
     if (files == NULL) { free(arg); return NULL; }
+
+    bool cpg_only = j.args.cpg && !j.args.chh && !j.args.chg;
     plp_data pileup = calculate_pileup(
         files, j.chr, j.start, j.end,
         j.args.read_group, j.args.tag_name, j.args.tag_value,
         j.args.threshold, j.args.mod_base, j.args.combine,
-        j.args.hts_maxcnt, j.args.min_mapQ);
-    destroy_filesets(files);
+        j.args.hts_maxcnt, j.args.min_mapQ, j.ref, cpg_only);
+    
+    fspool_release(j.pool, files);
     free(arg);
     return pileup;
 }
@@ -54,11 +61,12 @@ void process_region(arguments_t args, const char *chr, int start, int end, char 
     fprintf(stderr, "Processing: %s:%d-%d\n", chr, start, end);
     set_fsets* files = create_filesets(j.args.bam);
     if (files == NULL) return;
+    bool cpg_only = args.cpg && !args.chh && !args.chg;
     plp_data pileup = calculate_pileup(
         args.bam, chr, start, end,
         args.read_group, args.tag_name, args.tag_value,
         args.threshold, args.mod_base, args.combine,
-        args.hts_maxcnt, args.min_mapQ);
+        args.hts_maxcnt, args.min_mapQ, ref, cpg_only);
     if (pileup == NULL) return;
 
     init_output_buffers(bed_files);
@@ -73,41 +81,78 @@ void process_region(arguments_t args, const char *chr, int start, int end, char 
 #else
 void process_region(arguments_t args, const char *chr, int start, int end, char *ref, output_files bed_files) {
     fprintf(stderr, "Processing: %s:%d-%d\n", chr, start, end);
+    // create file set pool
+    fspool *pool = fspool_create(args.bam, args.threads, args.ref);
+    if (pool == NULL) {
+        fprintf(stderr, "ERROR: Failed to open input BAM files\n");
+        exit(EXIT_FAILURE);
+    }
+
     // create thread pool
+    int qsize = 4 * args.threads;
     hts_tpool *p = hts_tpool_init(args.threads);
-    hts_tpool_process *q = hts_tpool_process_init(p, 2 * args.threads, 0);
+    hts_tpool_process *q = hts_tpool_process_init(p, qsize, 0);
     hts_tpool_result *r;
     const int width = 1000000;
 
     init_output_buffers(bed_files);
     int nregs = 1 + (end - start) / width; float done = 0;
+
+    // process chunks. The strategy here is to submit up to qsize jobs
+    // immediately without blocking, then start pulling results one at
+    // a time, submitting a new job for each result obtained. This keeps
+    // memory usage bounded but we will block main thread (and so new
+    // submissions) if one job takes an unusually long time.
+    int submitted = 0;
     for (int rstart = start; rstart < end; rstart += width) {
         twarg *tw_args = xalloc(1, sizeof(*tw_args), "thread worker args");  // freed in worker
         tw_args->args = args;
-        tw_args->chr = chr; tw_args->start = rstart; tw_args->end=min(rstart + width, end);
-        int blk;
-        do {
-            blk = hts_tpool_dispatch2(p, q, pileup_worker, tw_args, 1);
-            if ((r = hts_tpool_next_result(q))) {
-                plp_data res = (plp_data)hts_tpool_result_data(r);
-                if (res != NULL) {
-                    if (args.pileup) {
-                        print_pileup_data(res);
-                    } else {
-                        print_bedmethyl(
-                            res, ref, 0,
-                            args.extended, args.mod_base.abbrev, args.mod_base.base, bed_files);
-                    }
-                    destroy_plp_data(res);
-                    done++;
-                    fprintf(stderr, "\r%.1f %%", 100*done/nregs);
-                }
-                hts_tpool_delete_result(r, 0);
+        tw_args->chr = chr;
+        tw_args->start = rstart;
+        tw_args->end=min(rstart + width, end);
+        tw_args->ref = ref;
+        tw_args->pool = pool;
+        if (submitted < qsize) {
+            // submit without blocking
+            int blk = hts_tpool_dispatch2(p, q, pileup_worker, tw_args, 0);
+            if (blk == -1) {
+                fprintf(stderr, "ERROR: Internal error submitting to thread pool\n");
+                exit(EXIT_FAILURE);
             }
-        } while (blk == -1);
+            submitted++;
+            continue;
+        }
+        // wait for a result, submit a new one, process the result
+        hts_tpool_result *r = hts_tpool_next_result_wait(q);
+        if(r) {
+            int blk = hts_tpool_dispatch2(p, q, pileup_worker, tw_args, 1);
+            if (blk == -1) {
+                fprintf(stderr, "ERROR: Internal error submitting to thread pool\n");
+                exit(EXIT_FAILURE);
+            }
+            submitted++;
+            plp_data res = (plp_data)hts_tpool_result_data(r);
+            if (res != NULL) {
+                if (args.pileup) {
+                    print_pileup_data(res);
+                } else {
+                    print_bedmethyl(
+                        res, ref, 0,
+                        args.extended, args.mod_base.abbrev, args.mod_base.base, bed_files);
+                }
+                destroy_plp_data(res);
+                done++;
+                fprintf(stderr, "\r%.1f %%", 100*done/nregs);
+            }
+            hts_tpool_delete_result(r, 0);
+        }
+        else {
+            fprintf(stderr, "ERROR: Internal error submitting to thread pool\n");
+            exit(EXIT_FAILURE); 
+        }
     }
 
-    // wait for jobs, then collect.
+    // wait for remaining jobs, then collect.
     hts_tpool_process_flush(q);
     while ((r = hts_tpool_next_result(q))) {
         plp_data res = (plp_data)hts_tpool_result_data(r);
@@ -134,6 +179,9 @@ void process_region(arguments_t args, const char *chr, int start, int end, char 
     // clean up pool
     hts_tpool_process_destroy(q);
     hts_tpool_destroy(p);
+
+    // close persistent file sets
+    fspool_destroy(pool);
 }
 #endif
 

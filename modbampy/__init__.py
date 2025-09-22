@@ -8,7 +8,7 @@ import numpy as np
 import libmodbampy
 
 # remember to bump version in src/version.h too
-__version__ = "0.10.0"
+__version__ = "0.10.1"
 ffi = libmodbampy.ffi
 libbam = libmodbampy.lib
 
@@ -103,7 +103,7 @@ class ModBam:
         """
         self.bam = bam
         self._bam_fset = ffi.gc(
-            libbam.create_bam_fset(self.bam.encode()),
+            libbam.create_bam_fset(self.bam.encode(), ffi.NULL),
             libbam.destroy_bam_fset)
 
     def __enter__(self):
@@ -187,7 +187,8 @@ class ModBam:
             fsets, chrom.encode(), start, end,
             read_group, tag_name, tag_value,
             threshold, mod_base.struct,
-            combine, max_depth, min_mapq)
+            combine, max_depth, min_mapq,
+            ffi.NULL, False)
         # TODO: check for NULL
 
         # copy data to numpy, we could be more clever here an wrap

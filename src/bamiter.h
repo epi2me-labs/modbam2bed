@@ -4,6 +4,27 @@
 #include <stdbool.h>
 #include "htslib/sam.h"
 
+// a wrapper to keep track of a bam file, its index and header
+typedef struct {
+    htsFile *fp;
+    hts_idx_t *idx;
+    sam_hdr_t *hdr;
+} bam_fset;
+
+// a collection of such things
+typedef struct set_fsets {
+    bam_fset **fsets;
+    size_t n;
+} set_fsets;
+
+// a pool of file sets for multithreaded processing
+typedef struct {
+    set_fsets **a;
+    int cap;
+    int top;
+    pthread_mutex_t mu;
+} fspool;
+
 // parameters for bam iteration
 typedef struct {
     htsFile *fp;
@@ -18,29 +39,30 @@ typedef struct {
 } mplp_data;
 
 
-typedef struct {
-    htsFile *fp;
-    hts_idx_t *idx;
-    sam_hdr_t *hdr;
-} bam_fset;
-
-typedef struct set_fsets {
-    bam_fset **fsets;
-    size_t n;
-} set_fsets;
-
-
 // Initialise BAM file, index and header structures
-bam_fset* create_bam_fset(const char* fname);
+bam_fset* create_bam_fset(const char* fname, const char* ref_file);
 
-// Destory BAM file, index and header structures
+// Destroy BAM file, index and header structures
 void destroy_bam_fset(bam_fset* fset);
 
 // Initialise multiple BAM filesets
-set_fsets *create_filesets(const char **bams);
+set_fsets *create_filesets(const char **bams, const char* ref_file);
 
 // Destroy multiple BAM filesets
 void destroy_filesets(set_fsets *s);
+
+
+// Create a pool of filesets for use in multithreaded processing
+fspool *fspool_create(const char **bam_files, int nworkers, const char* ref_file);
+
+// Destroy a pool of filesets
+void fspool_destroy(fspool *p);
+
+// Acquire a fileset from the pool
+set_fsets *fspool_acquire(fspool *p);
+
+// Release a fileset back to the pool
+void fspool_release(fspool *p, set_fsets *fs);
 
 
 /** Set up a bam file for reading (filtered) records.
@@ -62,12 +84,14 @@ mplp_data *create_bam_iter_data(
     const char *read_group, const char tag_name[2], const int tag_value,
     const int min_mapQ);
 
+
 /** Clean up auxiliary bam reading data.
  *
  *  @param data auxiliary structure to clean.
  *
  */
 void destroy_bam_iter_data(mplp_data *data);
+
 
 /** Read a bam record.
  *
@@ -76,6 +100,7 @@ void destroy_bam_iter_data(mplp_data *data);
  *
  */
 int read_bam(void *data, bam1_t *b);
+
 
 /** Create an map of query position to reference position
  *
