@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v0.10.1]
+
+Various small changes to improve performance. 40% faster for all-context 5mC pileup,
+60% faster for CpG-only 5mC pileup (115 seconds and 75 seconds respectively for a
+60X chr20 test dataset). There are no other user-facing changes in this release.
+
+### Changed
+- CRAM parsing performance improved by avoiding decoding of unnecessary data.
+- Reuse htslib file handles across worker tasks to avoid repeated open/close.
+- Improved performance of CpG filtering by prefiltering pileup columns.
+- Optimized output writing using custom string formatting.
+- Avoid `bam_mods_at_qpos` calls in favour of manual handling of htslib iterators.
+- Rework top-level job submission to avoid excessive task creation overhead.
+
 ## [v0.10.0]
 ### Changed
 Read iterator now returns copies of alignments for more Pythonic behaviour.

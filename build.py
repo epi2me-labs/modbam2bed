@@ -72,13 +72,13 @@ cdef = ["""
 
     // opening bam with idx and hdr info
     typedef struct { ...; } bam_fset;
-    bam_fset* create_bam_fset(char* fname);
+    bam_fset* create_bam_fset(char* fname, char* ref_name);
     void destroy_bam_fset(bam_fset* fset);
     typedef struct set_fsets {
         bam_fset **fsets;
         size_t n;
     } set_fsets;
-    set_fsets *create_filesets(const char **bams);
+    set_fsets *create_filesets(const char **bams, const char* ref_file);
     void destroy_filesets(set_fsets *s);
 
     mplp_data *create_bam_iter_data(

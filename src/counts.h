@@ -55,19 +55,19 @@ void init_output_buffers(output_files bed_files);
 void flush_output_buffers(output_files bed_files, const char* chr, bool extended, char* feature);
 
 
-// Check sequences for motifs
+// Check sequences for motifs - these are extern here so they can be found by Python
 // CpG
-bool extern inline is_cpg_fwd(size_t rpos, int rlen, char* ref);
-bool extern inline is_cpg_rev(size_t rpos, int rlen, char* ref);
+bool extern inline is_cpg_fwd(size_t rpos, int rlen, const char* ref);
+bool extern inline is_cpg_rev(size_t rpos, int rlen, const char* ref);
 // CHN
-bool extern inline _is_chn_fwd(size_t rpos, int rlen, char* ref);
-bool extern inline _is_chn_rev(size_t rpos, int rlen, char* ref);
+bool extern inline _is_chn_fwd(size_t rpos, int rlen, const char* ref);
+bool extern inline _is_chn_rev(size_t rpos, int rlen, const char* ref);
 // CHH
-bool extern inline is_chh_fwd(size_t rpos, int rlen, char* ref);
-bool extern inline is_chh_rev(size_t rpos, int rlen, char* ref);
+bool extern inline is_chh_fwd(size_t rpos, int rlen, const char* ref);
+bool extern inline is_chh_rev(size_t rpos, int rlen, const char* ref);
 // CHG
-bool extern inline is_chg_fwd(size_t rpos, int rlen, char* ref);
-bool extern inline is_chg_rev(size_t rpos, int rlen, char* ref);
+bool extern inline is_chg_fwd(size_t rpos, int rlen, const char* ref);
+bool extern inline is_chg_rev(size_t rpos, int rlen, const char* ref);
 
 // medaka-style base encoding - augmented with (a) modified base counts
 static const char plp_bases[] = "acgtACGTdDmMfoOfFxX";  // o: "other mod", f:"filtered", x:"no call"
@@ -169,6 +169,7 @@ void print_bedmethyl(
 plp_data calculate_pileup(
     const set_fsets *fsets, const char *chr, int start, int end,
     const char *read_group, const char tag_name[2], const int tag_value,
-    int threshold, mod_base mb, bool combine, int max_depth, int min_mapQ);
+    int threshold, mod_base mb, bool combine, int max_depth, int min_map,
+    const char* ref, const bool cpg_only);
 
 #endif

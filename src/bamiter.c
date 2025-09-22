@@ -1,4 +1,5 @@
 #include <errno.h>
+#include <pthread.h>
 #include <string.h>
 
 #include "bamiter.h"
@@ -6,11 +7,21 @@
 
 
 // Initialise BAM file, index and header structures
-bam_fset* create_bam_fset(const char* fname) {
+bam_fset* create_bam_fset(const char* fname, const char* ref_name) {
     bam_fset* fset = xalloc(1, sizeof(bam_fset), "bam fileset");
     fset->fp = hts_open(fname, "rb");
     fset->idx = sam_index_load(fset->fp, fname);
     fset->hdr = sam_hdr_read(fset->fp);
+    hts_set_opt(fset->fp, CRAM_OPT_DECODE_MD, 0);
+    hts_set_opt(fset->fp, CRAM_OPT_REQUIRED_FIELDS,
+        SAM_FLAG | SAM_RNAME | SAM_POS | SAM_MAPQ | SAM_CIGAR | SAM_SEQ | SAM_AUX);
+    if (NULL != ref_name) {
+        // append ".fai" to reference file name
+        char *ref_fai = xalloc(strlen(ref_name)+5, sizeof(char), "fai file name");
+        sprintf(ref_fai, "%s.fai", ref_name);
+        hts_set_fai_filename(fset->fp, ref_fai);
+        free(ref_fai);
+    }
     if (fset->hdr == 0 || fset->idx == 0 || fset->fp == 0) {
         destroy_bam_fset(fset);
         fprintf(stderr, "Failed to read .bam file '%s'.", fname);
@@ -18,6 +29,7 @@ bam_fset* create_bam_fset(const char* fname) {
     }
     return fset;
 }
+
 
 // Destory BAM file, index and header structures
 void destroy_bam_fset(bam_fset* fset) {
@@ -27,14 +39,15 @@ void destroy_bam_fset(bam_fset* fset) {
     free(fset);
 }
 
+
 // Initialise multiple BAM filesets
-set_fsets *create_filesets(const char **bam_files) {
+set_fsets *create_filesets(const char **bam_files, const char* ref_file) {
     int nfile = 0; for (; bam_files[nfile]; nfile++);
     set_fsets *sets = xalloc(1, sizeof(set_fsets), "bam file sets");
     sets->fsets = xalloc(nfile, sizeof(bam_fset*), "bam files");
     sets->n = nfile;
     for (size_t i = 0; i < nfile; ++i) {
-        sets->fsets[i] = create_bam_fset((const char *) bam_files[i]);
+        sets->fsets[i] = create_bam_fset((const char *) bam_files[i], ref_file);
         if (sets->fsets[i] == NULL) {
             for (size_t j = 0; j < i; ++j) {
                 destroy_bam_fset(sets->fsets[i]);
@@ -46,6 +59,7 @@ set_fsets *create_filesets(const char **bam_files) {
     return sets;
 }
 
+
 // Destroy multiple BAM filesets
 void destroy_filesets(set_fsets *s) {
     for (size_t i = 0; i < s->n; ++i) {
@@ -55,19 +69,63 @@ void destroy_filesets(set_fsets *s) {
 }
 
 
-/** Set up a bam file for reading (filtered) records.
- *
- *  @param bam_file input aligment file.
- *  @param chr bam target name.
- *  @param start start position of chr to consider.
- *  @param end end position of chr to consider.
- *  @param read_group by which to filter alignments.
- *  @param tag_name by which to filter alignments.
- *  @param tag_value associated with tag_name.
- *
- *  The return value can be freed with destroy_bam_iter_data.
- *
- */
+// Create a pool of filesets for use in multithreaded processing
+fspool *fspool_create(const char **bam_files, int nworkers, const char* ref_file) {
+    fspool *p = xalloc(1, sizeof(*p), "fspool");
+    p->a = xalloc(nworkers, sizeof(*p->a), "fspool array");
+    p->cap = nworkers;
+    p->top = nworkers;
+    pthread_mutex_init(&p->mu, NULL);
+    // make a fileset per worker
+    for (int i = 0; i < nworkers; ++i) {
+        p->a[i] = create_filesets(bam_files, ref_file);
+        if (!p->a[i]) {
+            for (int j = 0; j < i; ++j) {
+                destroy_filesets(p->a[j]);
+            }
+            free(p->a);
+            free(p);
+            return NULL;
+        }
+    }
+    return p;
+}
+
+
+// Destroy a pool of filesets
+void fspool_destroy(fspool *p) {
+    if (!p) return;
+    for (int i = 0; i < p->cap; ++i) {
+        destroy_filesets(p->a[i]);
+    }
+    pthread_mutex_destroy(&p->mu);
+    free(p->a); free(p);
+}
+
+
+// Acquire a fileset from the pool
+set_fsets *fspool_acquire(fspool *p) {
+    pthread_mutex_lock(&p->mu);
+    while (p->top == 0) {
+        pthread_mutex_unlock(&p->mu);
+        sched_yield();
+        pthread_mutex_lock(&p->mu);
+    }
+    set_fsets *fs = p->a[--p->top];
+    pthread_mutex_unlock(&p->mu);
+    return fs;
+}
+
+
+// Release a fileset back to the pool
+void fspool_release(fspool *p, set_fsets *fs) {
+    pthread_mutex_lock(&p->mu);
+    p->a[p->top++] = fs;
+    pthread_mutex_unlock(&p->mu);
+}
+
+
+// Set up a bam file for reading (filtered) records.
 mplp_data *create_bam_iter_data(
         const bam_fset* bam_set, const char *chr, int start, int end,
         const char *read_group, const char tag_name[2], const int tag_value,
@@ -102,23 +160,15 @@ mplp_data *create_bam_iter_data(
     return data;
 }
 
-/** Clean up auxiliary bam reading data.
- *
- *  @param data auxiliary structure to clean.
- *
- */
+
+// Clean up auxiliary bam reading data.
 void destroy_bam_iter_data(mplp_data *data) {
     bam_itr_destroy(data->iter);
     free(data);
 }
 
 
-/** Read a bam record.
- *
- *  @param data an mplp_data encoding the bam file to read with filter options.
- *  @param b output pointer.
- *
- */
+// Read a bam record.
 int read_bam(void *data, bam1_t *b) {
     mplp_data *aux = (mplp_data*) data;
     uint8_t *tag;
@@ -162,12 +212,7 @@ int read_bam(void *data, bam1_t *b) {
 }
 
 
-/** Create an map of query position to reference position
- *
- *  @param b alignment record
- *
- *  The length of the returned array is b->core->l_qlen.
- */
+// Create an map of query position to reference position
 int *qpos2rpos(bam1_t *b) {
     // we only deal in primary/soft-clipped alignments so length
     // ok qseq member is the length of the intact query sequence.
